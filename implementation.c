@@ -2,9 +2,9 @@
 
   MyFS: a tiny file-system based on FUSE - Filesystem in Userspace
 
-  Compile with:
-  gcc -Wall myfs.c implementation.c `pkg-config fuse --cflags --libs` -o myfs
-
+  Usage:
+    gcc -Wall myfs.c implementation.c `pkg-config fuse --cflags --libs` -o myfs
+    ./myfs
 */
 
 #include <stddef.h>
@@ -24,26 +24,25 @@
 /* File system --  
 
    File system must not:
-      Depend on memory outside of the filesystem memory region
-      
-      Use any global variables - use a struct containing all "global" data at
+      * Segfault
+      * Fail with exit(1) in case of an error.
+      * Depend on memory outside of the filesystem memory regionf
+      * Use any global variables - use a struct containing all "global" data at
         the start of the memory region representing the filesystem.
-      Store any pointer directly to mem pointed to by fsptr; instead store 
+      *Store any pointer directly to mem pointed to by fsptr; instead store 
         offsets from the start of the mem region.
-      Segfault
-      Fail with exit(1) in case of an error.
 
    The filesystem:
-      Run in memory (memory comes from mmap).
-      Must support all the 13 operations stubbed out below.
-      Must support access and modification times and statfs info.
+      * Run in memory (memory comes from mmap).
+      * Must support all the 13 operations stubbed out below.
+      *Must support access and modification times and statfs info.
         (needs not) support: access rights, links, symbolic links. 
       
-      Is of size fssize pointed to by fsptr (Size of  memory region >= 2048)
-      On mounted for the first time, the whole memory region of size fssize
+      *Is of size fssize pointed to by fsptr (Size of  memory region >= 2048)
+      *On mounted for the first time, the whole memory region of size fssize
         pointed to by fsptr reads as zero-bytes. 
-      On unmounted, memory is written to backup-file. 
-      On mounted from backup, memory previously written may be non-zero bytes. 
+      *On unmounted, memory is written to backup-file. 
+      *On mounted from backup, memory previously written may be non-zero bytes. 
         (only writes whats inside virtual memory address space to backup-file.) 
       On mount from backup-file, same data appears at the newly mapped vaddress. 
 
@@ -51,31 +50,27 @@
         strncpy, strchr, strrchr, memset, memcpy. 
       
       
-   
-   CAUTION:
-
    *** You MUST NOT store (the value of) pointers into the memory region
-   that represents the filesystem. Pointers are virtual memory
-   addresses and these addresses are ephemeral. Everything will seem
-   okay UNTIL you remount the filesystem again.
-
-   You may store offsets/indices (of type size_t) into the
-   filesystem. These offsets/indices are like pointers: instead of
-   storing the pointer, you store how far it is away from the start of
-   the memory region. You may want to define a type for your offsets
-   and to write two functions that can convert from pointers to
-   offsets and vice versa.
+     that represents the filesystem. Pointers are virtual memory
+     addresses and these addresses are ephemeral. Everything will seem
+     okay UNTIL you remount the filesystem again.
+  
+     You may store offsets/indices (of type size_t) into the
+     filesystem. These offsets/indices are like pointers: instead of
+     storing the pointer, you store how far it is away from the start of
+     the memory region. You may want to define a type for your offsets
+     and to write two functions that can convert from pointers to
+     offsets and vice versa.
 
    *** Your FUSE process, which implements the filesystem, MUST NOT leak
-   memory. Be careful in particular not to leak tiny amounts of memory that
-   accumulate over time. A FUSE process is supposed to run for a long time!
-   
-   Check for memory leaks by running the FUSE process inside valgrind:
-   valgrind --leak-check=full ./myfs --backupfile=test.myfs ~/fuse-mnt/ -f
+     memory. Be careful in particular not to leak tiny amounts of memory that
+     accumulate over time. A FUSE process is supposed to run for a long time!
+     
+     Check for memory leaks by running the FUSE process inside valgrind:
+     valgrind --leak-check=full ./myfs --backupfile=test.myfs ~/fuse-mnt/ -f
 
 
-
-   IT IS REASONABLE TO PROCEED IN THE FOLLOWING WAY:
+   ***** IT IS REASONABLE TO PROCEED IN THE FOLLOWING WAY:
 
    (1)   Design and implement a mechanism that initializes a filesystem
          whenever the memory space is fresh. That mechanism can be
@@ -86,7 +81,7 @@
          pieces of information (in the handle) get read back correctly
          from the backup-file. 
 
-   (2)   Design and implement functions to find and allocate free memory
+   (2)   Design/implement functions to find and allocate free memory
          regions inside the filesystem memory space. There need to be 
          functions to free these regions again, too. Any "global" variable
          goes into the handle structure the mechanism designed at step (1) 
