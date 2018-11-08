@@ -102,6 +102,7 @@ static int __myfs_parse_size(size_t *size, const char *str) {
   return 1;
 }
 
+// Setup the fs environment, including loading/seeking backup file & doing mmap
 static int __myfs_setup_environment(struct __myfs_environment_struct_t *env, struct __myfs_options_struct_t *opts) {
   int size_specified, using_backup;
   size_t size;
