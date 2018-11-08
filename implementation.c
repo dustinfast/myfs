@@ -1,26 +1,8 @@
 /*
 
-  MyFS: a tiny file-system written for educational purposes
+  MyFS: a tiny file-system based on FUSE - Filesystem in Userspace
 
-  MyFS is 
-
-  Copyright 2018 by
-
-  University of Alaska Anchorage, College of Engineering.
-
-  Contributors: Christoph Lauter
-                ...
-                ... and
-                ...
-
-  and based on 
-
-  FUSE: Filesystem in Userspace
-  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
-
-  This program can be distributed under the terms of the GNU GPL.
-  See the file COPYING.
-
+  Compile with:
   gcc -Wall myfs.c implementation.c `pkg-config fuse --cflags --libs` -o myfs
 
 */
@@ -39,37 +21,40 @@
 #include <stdio.h>
 
 
-/* The filesystem you implement must support all the 13 operations
-   stubbed out below. There need no be support for access rights,
-   links, symbolic links. There needs to be support for access and
-   modification times and information for statfs.
+/* File system --  
 
-   The filesystem must run in memory, using the memory of size 
-   fssize pointed to by fsptr. The memory comes from mmap and 
-   is backed with a file if a backup-file is indicated. When
-   the filesystem is unmounted, the memory is written back to 
-   that backup-file. When the filesystem is mounted again from
-   the backup-file, the same memory appears at the newly mapped
-   in virtual address. The filesystem datastructures hence must not
-   store any pointer directly to the memory pointed to by fsptr; it
-   must rather store offsets from the beginning of the memory region.
+   File system must not:
+      Depend on memory outside of the filesystem memory region
+      
+      Use any global variables - use a struct containing all "global" data at
+        the start of the memory region representing the filesystem.
+      Store any pointer directly to mem pointed to by fsptr; instead store 
+        offsets from the start of the mem region.
+      Segfault
+      Fail with exit(1) in case of an error.
 
-   When a filesystem is mounted for the first time, the whole memory
-   region of size fssize pointed to by fsptr reads as zero-bytes. When
-   a backup-file is used and the filesystem is mounted again, certain
-   parts of the memory, which have previously been written, may read
-   as non-zero bytes. The size of the memory region is at least 2048
-   bytes.
+   The filesystem:
+      Run in memory (memory comes from mmap).
+      Must support all the 13 operations stubbed out below.
+      Must support access and modification times and statfs info.
+        (needs not) support: access rights, links, symbolic links. 
+      
+      Is of size fssize pointed to by fsptr (Size of  memory region >= 2048)
+      On mounted for the first time, the whole memory region of size fssize
+        pointed to by fsptr reads as zero-bytes. 
+      On unmounted, memory is written to backup-file. 
+      On mounted from backup, memory previously written may be non-zero bytes. 
+        (only writes whats inside virtual memory address space to backup-file.) 
+      On mount from backup-file, same data appears at the newly mapped vaddress. 
 
+      May use libc functions, ex: malloc, calloc, free, strdup, strlen, 
+        strncpy, strchr, strrchr, memset, memcpy. 
+      
+      
+   
    CAUTION:
 
-   * You MUST NOT use any global variables in your program for reasons
-   due to the way FUSE is designed.
-
-   You can find ways to store a structure containing all "global" data
-   at the start of the memory region representing the filesystem.
-
-   * You MUST NOT store (the value of) pointers into the memory region
+   *** You MUST NOT store (the value of) pointers into the memory region
    that represents the filesystem. Pointers are virtual memory
    addresses and these addresses are ephemeral. Everything will seem
    okay UNTIL you remount the filesystem again.
@@ -81,39 +66,16 @@
    and to write two functions that can convert from pointers to
    offsets and vice versa.
 
-   * You may use any function out of libc for your filesystem,
-   including (but not limited to) malloc, calloc, free, strdup,
-   strlen, strncpy, strchr, strrchr, memset, memcpy. However, your
-   filesystem MUST NOT depend on memory outside of the filesystem
-   memory region. Only this part of the virtual memory address space
-   gets saved into the backup-file. As a matter of course, your FUSE
-   process, which implements the filesystem, MUST NOT leak memory: be
-   careful in particular not to leak tiny amounts of memory that
-   accumulate over time. In a working setup, a FUSE process is
-   supposed to run for a long time!
-
-   It is possible to check for memory leaks by running the FUSE
-   process inside valgrind:
-
+   *** Your FUSE process, which implements the filesystem, MUST NOT leak
+   memory. Be careful in particular not to leak tiny amounts of memory that
+   accumulate over time. A FUSE process is supposed to run for a long time!
+   
+   Check for memory leaks by running the FUSE process inside valgrind:
    valgrind --leak-check=full ./myfs --backupfile=test.myfs ~/fuse-mnt/ -f
 
-   However, the analysis of the leak indications displayed by valgrind
-   is difficult as libfuse contains some small memory leaks (which do
-   not accumulate over time). We cannot (easily) fix these memory
-   leaks inside libfuse.
 
-   * Avoid putting debug messages into the code. You may use fprintf
-   for debugging purposes but they should all go away in the final
-   version of the code. Using gdb is more professional, though.
 
-   * You MUST NOT fail with exit(1) in case of an error. All the
-   functions you have to implement have ways to indicated failure
-   cases. Use these, mapping your internal errors intelligently onto
-   the POSIX error conditions.
-
-   * And of course: your code MUST NOT SEGFAULT!
-
-   It is reasonable to proceed in the following order:
+   IT IS REASONABLE TO PROCEED IN THE FOLLOWING WAY:
 
    (1)   Design and implement a mechanism that initializes a filesystem
          whenever the memory space is fresh. That mechanism can be
