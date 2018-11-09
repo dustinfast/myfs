@@ -4,7 +4,13 @@
 
   Usage:
     gcc -Wall myfs.c implementation.c `pkg-config fuse --cflags --libs` -o myfs
-    ./myfs
+    ./myfs --backupfile=test.myfs ~/fuse-mnt/ -f
+
+    May be mounted while running inside gdb (for debugging) with:
+    gdb --args ./myfs --backupfile=test.myfs ~/fuse-mnt/ -f
+
+    It can then be unmounted (in another terminal) with
+    fusermount -u ~/fuse-mnt
 */
 
 #include <stddef.h>
@@ -22,40 +28,104 @@
 
 
 /* Helper types and functions */
-
-
 /* End of helper functions */
 
-/* Implements an emulation of the stat system call on the filesystem 
-   of size fssize pointed to by fsptr. 
+
+/* Implements the "stat" system call on the filesystem 
+
+   Accepts:
+      fsptr       : ptr to the fs
+      fssize      : size of fs pointed to by fsptr
+      errnoptr    : Error container
+      uid         : User ID of file/dir owner
+      gid         : Grtoup ID of file/dir owner
+      path        : Path of the file/dir in question
+      stbuf       : Results container
    
-   If path can be followed and describes a file or directory 
-   that exists and is accessable, the access information is 
-   put into stbuf. 
+   Returns:
+      If path not a valid file or directory, returns -1  w/error in *errnoptr.
+      If path is a valid file or directory, returns 0 with file/dir info as -
+            dev_t     st_dev;         ID of device containing file 
+            ino_t     st_ino;         Inode number 
+            *mode_t   st_mode;        File type and mode as fixed values:
+                                                S_IFDIR | 0755 for directories,
+                                                S_IFREG | 0755 for files
+            *nlink_t  st_nlink;       Number of hard links 
+                                          (as many as there are subdirectories,
+                                          not files,for directories (including 
+                                          . and ..), or just 1 for files)
+            *uid_t    st_uid;         User ID of owner (from args)
+            *gid_t    st_gid;         Group ID of owner (from args)
+            dev_t     st_rdev;        Device ID (if special file) 
+            *off_t    st_size;        Real file size, in bytes (for files only)
+            st_atim   ??
+            st_mtim   ??
 
-   On success, 0 is returned. On failure, -1 is returned and 
-   the appropriate error code is put into *errnoptr.
 
-   man 2 stat documents all possible error codes and gives more detail
-   on what fields of stbuf need to be filled in. Essentially, only the
-   following fields need to be supported:
+   Example usage:
+      struct fuse_context *context = fuse_get_context();
 
-   st_uid      the value passed in argument
-   st_gid      the value passed in argument
-   st_mode     (as fixed values S_IFDIR | 0755 for directories,
-                                S_IFREG | 0755 for files)
-   st_nlink    (as many as there are subdirectories (not files) for directories
-                (including . and ..),
-                1 for files)
-   st_size     (supported only for files, where it is the real file size)
-   st_atim
-   st_mtim
+      struct __myfs_environment_struct_t *env;
+      env = (struct __myfs_environment_struct_t *) (context->private_data);
 
+      int res = __myfs_getattr_implem(env->memory,
+                                    env->size,
+                                    &__myfs_errno,
+                                    env->uid,
+                                    env->gid,
+                                    path,
+                                    st);
+      if (res >= 0)
+        return res;
 */
 int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
                           uid_t uid, gid_t gid,
                           const char *path, struct stat *stbuf) {
-  /* STUB */
+
+    __myfs_handle_t handle;   // fs handle?
+    __myfs_indode_t *node;    // node ptr
+
+      // Init handle to fs
+      handle = __myfs_get_handle(fsptr, fssize)
+      if (!handle) {
+            *errnoptr = EFAULT;
+            return -1;  // Fail, bad filesystem given
+      }
+
+      // Associate the given path with a node in the fs
+      node = myfs_path_resolve(handle, path);
+      if (!node) {
+            *errnoptr = ENOENT;
+            return -1;  // Fail, bad path given
+      }
+
+      // Reset the memory of the results container
+      memset(stbuf, 0, sizeof(struct stat));
+
+      // Populate stat buffer based on the node
+      stbuf->st_uid = uid;
+      stbuf->st_gid = gid;
+      stbuf->st_atim = node->times[0];
+      stbuf->st_mtim = node->times[1];
+
+      if (node->type == DIRECTORY) {
+            stbuf->st_mode = S_IFDIR | 0755;
+            stbuf->st_nlink = node->value.directory.number_children + ((size_t) 2);
+      } else {
+            stbuf->st_mode = S_IFREG | 0755;
+            stbuf->st_size = node->value.file.size;
+            stbuf->st_nlink = 1;
+      }
+
+      return 0;  // Success
+
+
+
+
+
+
+    // Write information about the file given by path to stbuf
+
   return -1;
 }
 
