@@ -96,7 +96,6 @@ void *find_x_blocks_free(struct Inode** head_ref, int x)
 }
 
 // get free space in filesystem
-
 int space_free(struct Inode** head_ref)
 {
     struct Inode *curr = *head_ref;
@@ -168,29 +167,28 @@ void empty(struct File** root_dir, struct Inode** head_ref)
 /* Driver program to test above function */
 int main() 
 {
-	int i = 0;
-	int num_blocks;
 	char path[1];
 	path[0] = '/';
-    //Initialize test file system
-	// Filesystem size
-	int filesyssize = 16 * 1024;
+
 	printf("Initializing 16KB test filesystem... Only accessible to this program...\n");
-    // Allocate memory for head eventually we will be using space from the memory he gives us for the filesystem
+	int filesyssize = 16 * 1024;  // Filesystem size
+    
+    // Allocate memory for head 
+    // (eventually we will be using space from the memory he gives us for the filesystem
     struct Inode* head = (struct Inode*)malloc(sizeof(struct Inode));	
 	head->inode_number = 0;
     head->block_start = malloc(BLOCK_SIZE);
     head->next = NULL;
 	
 	// Intitialize inodes linked lists for filesystem
-	num_blocks = filesyssize / BLOCK_SIZE;
 	// alocate inodes; start at one since head already exists
-	for (i = 1; i < num_blocks; i++) {
+	int num_blocks = filesyssize / BLOCK_SIZE;
+	for (int i = 1; i < num_blocks; i++) {
 		push_inode(&head, i);
 	}
 	printf("Creating root directory using one %d KB block.\n", BLOCK_SIZE/1024);
-	// Create root dir
-	// Allocate memory for root dir eventually we will be using space from the memory he gives us for the filesystem
+	// Allocate memory for root dir 
+    // eventually we will be using space from the memory he gives us
     struct File *root = (struct File*)malloc(sizeof(struct File)); 
     root->starting_inode = head;
 	head->free = 0;
