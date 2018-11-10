@@ -24,27 +24,83 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
-
+#include "myfs_includes.h"
 
 /* Helper types and functions */
+/* Begin Definitions ---------------------------------------------------- */
 
-// Helper const denoting if a mem chunk has been initialized to a fs or not.
-#define MAGIC_NUM ((uint32_t) (UINT32_C(0xdeadd0c5)))
+#define FS_ROOTPATH ("/")                   // File system's root path
+#define BLOCK_SZ_BYTES (1 * BYTES_IN_KB)    // Fs's mem block size in bytes
+#define FNAME_MAXLEN (256)                  // Max length of any filename
+#define PATH_MAXLEN (4096)                  // Max length of any path
+#define MAGIC_NUM (UINT32_C(0xdeadd0c5))    // Num for denoting block init
 
-// Memory block structure - adapted from clauter's in-class lecture (DF):
-struct __myfs_memory_block_t {  // MemBlock
-      size_t      size;
-      size_t      user_size;
-      __myfs_off_t next;
-} __myfs_memory_block_t;
+/* Inode struct -
+An Inode is a file or directory header containings file/dir attributes. */
+typedef struct Inode { 
+    char filename[FNAME_MAXLEN];  // This file's (or dir's) label
+    int is_dir;                   // 1 = node reprs a dir, else reprs a file
+    int subdirs;                  // Count of subdirs (iff is_dir == 1)
+    size_t max_size_bytes;        // Max size (before grow needed)
+    size_t curr_size_bytes;       // Currently used space (of max_size)
+    struct timespec last_access;  // Last access time
+    struct timespec last_mod;     // Last modified time
+    void *first_block;            // Ptr to first MemBlock used by the file/dir
+} Inode ;
 
-// Filesystem handle structure - adapted from clauter's in-lass lecture (DF):
-struct __myfs_handle_t {      // FSHandle
-      uint32_t    magic;
-      __myfs_off_t free_memory;
-      __myfs_off_t root dir;
-      size_t       size;
-} __myfs_handle_t;
+/* Memory block struct -
+Each file and/or folder uses a number of memory blocks. */
+typedef struct MemBlock {
+    size_t size_bytes;        // Mem block size (BLOCK_SZ_BYTES aligned)
+    size_t user_size_bytes;   // Size of data field
+    struct MemBlock *next;    // The next mem block used by the file/dir, if any
+} MemBlock;
+
+/* The Filesystem struct
+    A file system is a list of inodes with each node pointing to the memory 
+    address used by the file/dir the inode represents. */
+typedef struct FileSystem {
+    uint32_t magic;           // "Magic" number
+    Inode *free_blocks;       // Ptr to the "free mem blocks" list.
+    Inode *root_node;         // Ptr to file system's root directory inode
+    size_t size_bytes;        // Total bytes allocated to the fs
+} FileSystem;
+
+
+// Sizes of the above structs, for convenience
+#define INODE_OBJ_SZ sizeof(Inode)    // Size of the Inode struct (bytes)
+#define FILE_OBJ_SZ sizeof(File)      // Size of File struct (bytes)
+#define FS_OBJ_SZ sizeof(FileSystem)  // Size of FileSystem struct (bytes)
+
+
+/* End Definitions ------------------------------------------------------- */
+/* Begin Utility helpers ------------------------------------------------- */
+
+
+/* Given a filename, returns 1 if len(fname) within allowed length. */
+int is_valid_fname(char *fname) {
+    size_t len = str_len(fname);
+    if (len && len <= FNAME_MAXLEN)
+        // TODO: Also check for invalid chars
+        return 1;
+    return 0;
+}
+
+/* Returns a file system ref from the given fsptr and fssize. */
+FileSystem* get_fs_handle(void *fsptr, size_t fssize) {
+      FileSystem *fs = (FileSystem*)malloc(FS_OBJ_SZ);
+      // FileSystem *fs;
+      fs->size_bytes = fssize;
+      fs->root_node = (Inode*)fsptr;
+      fs->free_blocks = NULL;
+
+      // TODO: Chunk blocks and add free blocks to free
+      // int num_blocks = fssize / BLOCK_SZ_BYTES;
+
+      return fs;   
+}
+
+/* End Utility helpers --------------------------------------------------- */
 
 /* End of helper functions */
 
@@ -62,18 +118,16 @@ struct __myfs_handle_t {      // FSHandle
       stbuf       : Results container
    
    Returns:
-      If path not a valid file or directory: returns -1  w/error in *errnoptr.
-      If path is a valid file or directory: returns 0 with file/dir info
-        copied to stbuf as -
-            mode_t        File type and mode as fixed values:
-                                    S_IFDIR | 0755 for directories,
-                                    S_IFREG | 0755 for files
+      -1  (w/error in *errnoptr) iff path not a valid file or directory. 
+      Else returns 0 with file/dir info copied to stbuf as -
             nlink_t       Count of subdirectories (w/ . & ..), or just 1 if file)
             uid_t         Owners's user ID (from args)
             gid_t         Owner's group ID (from args)
             off_t         Real file size, in bytes (for files only)
-            st_atim                  Last access time
-            st_mtim                  Last modified time
+            st_atim       Last access time
+            st_mtim       Last modified time
+            mode_t        File type/mode as S_IFDIR | 0755 for directories,
+                                            S_IFREG | 0755 for files
 
    Example usage:
       struct fuse_context *context = fuse_get_context();
@@ -84,48 +138,42 @@ struct __myfs_handle_t {      // FSHandle
 int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
                           uid_t uid, gid_t gid,
                           const char *path, struct stat *stbuf) {
+      FileSystem *fs_handle;   // fs handle
+      Inode *node;           // Inode ptr
 
-    // The following was adapted from clauter's in-class lecture (DF):
-
-    __myfs_handle_t handle;   // fs handle
-    __myfs_inode_t *node;    // node ptr
-
-      // Bind handle to fs
-      handle = __myfs_get_handle(fsptr, fssize)
-      if (!handle) {
+      // Bind fs_handle to fs
+      fs_handle = get_fs_handle(fsptr, fssize);
+      if (!fs_handle) {
             *errnoptr = EFAULT;
             return -1;  // Fail, bad filesystem given
-      }
+      }    
 
-      // Associate the given path with a node in the fs
-      node = __myfs_path_resolve(handle, path);
+      // TODO: node = path_resolve(fs_handle, path);
+      node = fs_handle->root_node;
       if (!node) {
             *errnoptr = ENOENT;
             return -1;  // Fail, bad path given
-      }
+      }    
+    
+      //Reset the memory of the results container
+      memset(stbuf, 0, sizeof(struct stat));   
 
-      // Reset the memory of the results container
-      memset(stbuf, 0, sizeof(struct stat));
-
-      // Populate results container based on the node
+      // Populate results container based on the inode
       stbuf->st_uid = uid;
       stbuf->st_gid = gid;
       stbuf->st_atim = node->last_access; 
-      stbuf->st_mtim = node->last_mod;
-
-      // TODO: node->value.directory...
+      stbuf->st_mtim = node->last_mod;    
+      
       if (node->is_dir) {
             stbuf->st_mode = S_IFDIR | 0755;
-            stbuf->st_nlink = node->subdirs + ((size_t) 2);
+            stbuf->st_nlink = node->subdirs + 2;  // + 2 for . and ..
       } else {
             stbuf->st_mode = S_IFREG | 0755;
-            stbuf->st_size = node->curr_size;
             stbuf->st_nlink = 1;
-      }
+            stbuf->st_size = node->curr_size_bytes;
+      } 
 
-      return 0;  // Success
-
-  return -1;
+      return 0;  // Success  
 }
 
 /* Implements an emulation of the readdir system call on the filesystem 
