@@ -11,7 +11,6 @@
     fusermount -u ~/fuse-mnt
 */
 
-// TODO: Remove un-needed includes
 #include <stddef.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
@@ -37,14 +36,14 @@
 /* Inode header -
 An Inode is a file or directory header containings file/dir attributes. */
 typedef struct Inode { 
-    char filename[FNAME_MAXLEN];  // This file's (or dir's) label
-    int is_dir;                   // 1 = node reprs a dir, else reprs a file
-    int subdirs;                  // Count of subdirs (iff is_dir == 1)
-    size_t max_size_bytes;        // Max size (before grow needed)
-    size_t curr_size_bytes;       // Currently used space (of max_size)
-    struct timespec last_access;  // Last access time
-    struct timespec last_mod;     // Last modified time
-    void *first_block;            // Ptr to first MemBlock used by the file/dir
+    char filename[FNAME_MAXLEN];    // This file's (or dir's) label
+    int is_dir;                     // 1 = node reprs a dir, else reprs a file
+    int subdirs;                    // Count of subdirs (iff is_dir == 1)
+    size_t max_size_bytes;          // Max size (before grow needed)
+    size_t curr_size_bytes;         // Currently used space (of max_size)
+    struct timespec *last_access;   // Last access time
+    struct timespec *last_mod;      // Last modified time
+    void *first_block;              // Ptr to first MemBlock used by file/dir
 } Inode ;
 
 /* Memory block header -
@@ -63,7 +62,7 @@ typedef struct FileSystem {
     uint32_t magic;                 // "Magic" number
     size_t size_bytes;              // Bytes available to fs (w/out header) 
     struct Inode *root_inode;       // Ptr to fs root dir's inode
-    struct Inode *free_blocks;      // Ptr to the "free mem blocks" list
+    struct Inode *first_free;       // Ptr to the "free mem blocks" list
 } FileSystem;
 
 // Sizes of the above structs
@@ -97,33 +96,53 @@ static int is_valid_path(char *path) {
 /* End Our Utility helpers ------------------------------------------------ */
 /* Begin Our FS helpers --------------------------------------------------- */
 
-//TODO: Inode* resolve_path(FileSystem handle, const char *path) {
+
+// TODO: Inode* resolve_path(FileSystem *fs, const char *path) {
 
 /* Returns a file system ref from the given fsptr and fssize. */
 static FileSystem* get_filesys(void *fsptr, size_t size) {
-      if (size < MIN_FS_SZ_BYTES) return NULL;   // Validate size
+    if (size < MIN_FS_SZ_BYTES) return NULL;   // Validate size
 
-      FileSystem *fs = (FileSystem*) fsptr;  // Map filesys onto given mem
-      size_t fs_sz = size - FS_OBJ_SZ;       // Actual avail fs bytes
+    FileSystem *fs = (FileSystem*) fsptr;  // Map filesys onto given mem
+    size_t fs_size = size - FS_OBJ_SZ;
 
-      // If memory hasn't been set up as a file system, do it now
-      if (fs->magic != MAGIC_NUM) {
-            memset(fsptr + FS_OBJ_SZ, 0, fs_sz);      // Zero-fill mem space
+    // If memory hasn't been set up as a file system, do it now
+    if (fs->magic != MAGIC_NUM) {
+        memset(fsptr + FS_OBJ_SZ, 0, fs_size);    // Zero-fill mem space
 
-            // Populate file system fields
-            fs->magic = MAGIC_NUM;
-            fs->size_bytes = fs_sz;
-            fs->root_inode = (Inode*) (FS_OBJ_SZ + fsptr);
-            fs->free_blocks = NULL;
+        // Populate file system fields
+        fs->magic = MAGIC_NUM;
+        fs->size_bytes = fs_size;
 
-            // Chunk blocks
-            // int num_blocks = fs_sz / BLOCK_SZ_BYTES;
-            // TODO: add free blocks to free blocks list
-            // TODO: Setup root inode
-      } 
+        fs->root_inode = (Inode*) (fsptr + FS_OBJ_SZ);
+        strncpy(FS_ROOTPATH, fs->root_inode->filename, 1);
+        fs->root_inode->is_dir = 1;
+        fs->root_inode->subdirs = 0;
+        fs->root_inode->max_size_bytes = 0;
+        fs->root_inode->curr_size_bytes = 0;
+        fs->root_inode->last_access = NULL;     // TODO
+        fs->root_inode->last_mod = NULL;        // TODO
+        fs->root_inode->first_block = NULL;     // TODO
+        
+        fs->first_free = NULL;                  // TODO
 
-      return fs;   
+        // Fill the rest of the allocated space with mem block(s?) & add as free
+        // MemBlock *memblock = (MemBlock*);
+        // int memblock_offset = fsptr + FS_OBJ_SZ + INODE_OBJ_SZ;
+        // size_t grand_blocksz = MEMBLK_OBJ_SZ + BLOCK_SZ_BYTES;
+        // size_t fs_boundry = fsptr + size;
+        // while (memblock_offset < fs_boundry - BLOCK_SZ_BYTES) {
+        // int num_blocks = fs_size / BLOCK_SZ_BYTES;
+        // for (int i = 0; i < num_blocks; i++) {
+        //     Inode *new_block = malloc(MEMBLK_OBJ_SZ);
+        //     push_free_memblock(fs, i);
+        // }
+    } 
+
+    return fs;   
 }
+
+
 
 /* End Our FS helpers ----------------------------------------------------- */
 /* Begin Our 13 implementations ------------------------------------------- */
