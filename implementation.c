@@ -26,7 +26,7 @@
 #include <stdio.h>
 
 
-/* Helper types /functions */
+/* Helper types and functions */
 
 // Helper const denoting if a mem chunk has been initialized to a fs or not.
 #define MYFS_MAGIC ((uint32_t) (UINT32_C(0xdeaddocs)))

@@ -3,7 +3,7 @@
 ## Files
 * **originals (dir)**: Contains unmodified copies of the original assignment files
 * **a4_fs.c**: The filesystem logic
-* **a4_helpers.c**: Generic helper functions, ex: str_len, print_debug, etc.
+* **a4_includes_.c**: Ancillary helper functions, ex: str_len, print_debug, etc.
 * **implemnetation.c**: Contains stubs we need to flesh out 
 * **myfs.c**: Contains helpers for FUSE 
 
