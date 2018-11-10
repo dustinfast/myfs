@@ -1,5 +1,15 @@
 # a4
 
+## Files
+* **originals (dir)**: Contains unmodified copies of the original assignment files
+* **a4_fs.c**: The filesystem logic
+* **a4_helpers.c**: Generic helper functions, ex: str_len, print_debug, etc.
+* **implemnetation.c**: Contains stubs we need to flesh out 
+* **myfs.c**: Contains helpers for FUSE 
+
+NOTE: The docstrings for implementation.c and myfs.c have largely been moved into this README file. (See below). For final turn-in, we should restore his header docstrings from the original copies (they contain copyright notices, etc.)
+
+
 ## Assignment Instructions
 
 ### The File system must not:
