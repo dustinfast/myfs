@@ -25,69 +25,82 @@
 #include <stdio.h>
 #include "myfs_includes.h"
 
+
+/* Begin File System Documentatin -----------------------------------------
+    
+    File system structure is:
+
+    To look up a file by a given absolute path:
+
+
+/* End File System Documentatin ----------------------------------------- */
+
 /* Begin Our Definitions -------------------------------------------------- */
 
+
 #define FS_ROOTPATH ("/")                   // File system's root path
-#define BLOCK_SZ_BYTES (1 * BYTES_IN_KB)    // Fs's mem block size in bytes
+#define BLOCK_SZ_BYTES (4 * BYTES_IN_KB)    // Size of each MemBlock in the fs
 #define FNAME_MAXLEN (256)                  // Max length of any filename
-#define PATH_MAXLEN (4096)                  // Max length of any path
 #define MAGIC_NUM (UINT32_C(0xdeadd0c5))    // Num for denoting block init
 
 /* Inode header -
-An Inode is a file or directory header containings file/dir attributes. */
+An Inode represents the meta-data of a file or directory. */
 typedef struct Inode { 
-    char filename[FNAME_MAXLEN];    // This file's (or dir's) label
-    int is_dir;                     // 1 = node reprs a dir, else reprs a file
-    int subdirs;                    // Count of subdirs (iff is_dir == 1)
-    size_t max_size_bytes;          // Max size (before grow needed)
-    size_t curr_size_bytes;         // Currently used space (of max_size)
-    struct timespec *last_access;   // Last access time
-    struct timespec *last_mod;      // Last modified time
-    void *first_block;              // Ptr to first MemBlock used by file/dir
+    char fname[FNAME_MAXLEN];   // The file/folder's label
+    int is_dir;                 // if == 1, node represents a dir, else a file
+    int subdirs;                // Subdir count (unused unless is_dir == 1)
+    size_t curr_size_bytes;     // Current file/dir size, in bytes
+    size_t max_size_bytes;      // Max sz before needing more MemBlocks
+    struct timespec last_acc;   // Last access time
+    struct timespec last_mod;   // Last modified time
+    void *memblock_offset;      // Offset from fsptr to file's 1st memblock
 } Inode ;
 
 /* Memory block header -
 Each file and/or folder uses a number of memory blocks. Block size is
 determined by BLOCK_SZ_BYTES. */
 typedef struct MemBlock {
-    size_t size_bytes;        // Mem block size (BLOCK_SZ_BYTES aligned)
+    size_t size_bytes;        // Mem block total size
     size_t user_size_bytes;   // Size of data field
-    struct MemBlock *next;    // Next mem block used by the file/dir, if any
+    struct MemBlock *next;    // Offset to next MemBlock file/dir uses, if any
 } MemBlock;
 
-/* Top-level Filesystem header
-    A file system is a list of inodes with each node pointing to the memory 
-    address used by the file/dir that inode represents. */
-typedef struct FileSystem {
+/* Top-level Filesystem "handle"
+A file system is a list of inodes with each inode pointing to the offset of the 
+first memory block used by the file/dir each inode represents. */
+typedef struct FSHandle {
     uint32_t magic;                 // "Magic" number
-    size_t size_bytes;              // Bytes available to fs (w/out header) 
+    size_t size_bytes;              // Bytes available to fs (w/out this handle) 
     struct Inode *root_inode;       // Ptr to fs root dir's inode
     struct Inode *first_free;       // Ptr to the "free mem blocks" list
-} FileSystem;
+} FSHandle;
 
 // Sizes of the above structs
-#define INODE_OBJ_SZ sizeof(Inode)      // Size of Inode struct (bytes)
-#define MEMBLK_OBJ_SZ sizeof(MemBlock)  // Size of MemBlock struct (bytes)
-#define FS_OBJ_SZ sizeof(FileSystem)    // Size of FileSystem struct (bytes)
-#define MIN_FS_SZ_BYTES (FS_OBJ_SZ + MEMBLK_OBJ_SZ) // Min requestable fs sz
+#define INODE_OBJ_SZ sizeof(Inode)          // Size of Inode struct in bytes
+#define MEMBLK_OBJ_SZ sizeof(MemBlock)      // Size of MemBlock struct in bytes
+#define FSHANDLE_OBJ_SZ sizeof(FSHandle)    // Size of FSHandle struct in bytes
+
+// Min requestable filesys size = FSHandle + 1 inode + 1 root dir + 1 memblock
+#define MIN_FS_SZ_BYTES (FSHANDLE_OBJ_SZ + MEMBLK_OBJ_SZ) 
 
 
 /* End Our Definitions ---------------------------------------------------- */
 /* Begin Our Utility helpers ---------------------------------------------- */
 
 
-/* Given a filename, returns 1 if len(fname) within allowed length. */
+/* Returns 1 iff fname is legal ascii chars and within max length, else 0. */
 static int is_valid_filename(char *fname) {
-    size_t len = str_len(fname);
-    if (len && len <= FNAME_MAXLEN)
-        return 1;
-    return 0;
-}
+    int len = 0;
+    int ord = 0;
 
-/* Given a path, returns 1 if len(path) within allowed length. */
-static int is_valid_path(char *path) {
-    size_t len = str_len(path);
-    if (len && len <= PATH_MAXLEN)
+    for (char *c = fname; *c != '\0'; c++) {
+        ord = (int) *c;
+        if (ord < 48 || ord > 122)
+            return 0;  // illegal ascii char found
+        len++;
+    }
+
+    if (len && len <= FNAME_MAXLEN)
         return 1;
     return 0;
 }
@@ -97,38 +110,39 @@ static int is_valid_path(char *path) {
 /* Begin Our FS helpers --------------------------------------------------- */
 
 
-// TODO: Inode* resolve_path(FileSystem *fs, const char *path) {
+// TODO: Inode* resolve_path(FSHandle *fs, const char *path) {
+// TODO: void* get_file_data(FSHandle *fs, const char *path) {
 
-/* Returns a file system ref from the given fsptr and fssize. */
-static FileSystem* get_filesys(void *fsptr, size_t size) {
-    if (size < MIN_FS_SZ_BYTES) return NULL;   // Validate size
+/* Maps a file system of size fssize onto the given fsptr and returns *fs. */
+static FSHandle* get_filesys(void *fsptr, size_t size) {
+    if (size < MIN_FS_SZ_BYTES) return NULL;   // Validate size specified
 
-    FileSystem *fs = (FileSystem*) fsptr;  // Map filesys onto given mem
-    size_t fs_size = size - FS_OBJ_SZ;
+    FSHandle *fs = (FSHandle*) fsptr;  // Map filesys onto given mem
+    size_t fs_size = size - FSHANDLE_OBJ_SZ;
 
     // If memory hasn't been set up as a file system, do it now
     if (fs->magic != MAGIC_NUM) {
-        memset(fsptr + FS_OBJ_SZ, 0, fs_size);    // Zero-fill mem space
+        memset(fsptr + FSHANDLE_OBJ_SZ, 0, fs_size);    // Zero-fill mem space
 
-        // Populate file system fields
+        // Populate file system data members
         fs->magic = MAGIC_NUM;
         fs->size_bytes = fs_size;
 
-        fs->root_inode = (Inode*) (fsptr + FS_OBJ_SZ);
-        strncpy(FS_ROOTPATH, fs->root_inode->filename, 1);
+        fs->root_inode = (Inode*) (fsptr + FSHANDLE_OBJ_SZ);
+        strncpy(FS_ROOTPATH, fs->root_inode->fname, 1);
         fs->root_inode->is_dir = 1;
         fs->root_inode->subdirs = 0;
         fs->root_inode->max_size_bytes = 0;
         fs->root_inode->curr_size_bytes = 0;
-        fs->root_inode->last_access = NULL;     // TODO
-        fs->root_inode->last_mod = NULL;        // TODO
-        fs->root_inode->first_block = NULL;     // TODO
+        // fs->root_inode->last_acc = NULL;        // TODO
+        // fs->root_inode->last_mod = NULL;        // TODO
+        fs->root_inode->memblock_offset = NULL; // TODO
         
         fs->first_free = NULL;                  // TODO
 
         // Fill the rest of the allocated space with mem block(s?) & add as free
         // MemBlock *memblock = (MemBlock*);
-        // int memblock_offset = fsptr + FS_OBJ_SZ + INODE_OBJ_SZ;
+        // int memblock_offset = fsptr + FSHANDLE_OBJ_SZ + INODE_OBJ_SZ;
         // size_t grand_blocksz = MEMBLK_OBJ_SZ + BLOCK_SZ_BYTES;
         // size_t fs_boundry = fsptr + size;
         // while (memblock_offset < fs_boundry - BLOCK_SZ_BYTES) {
@@ -181,14 +195,14 @@ static FileSystem* get_filesys(void *fsptr, size_t size) {
 int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
                           uid_t uid, gid_t gid,
                           const char *path, struct stat *stbuf) {
-      FileSystem *fs_handle;
+      FSHandle *fs_handle;
       Inode *inode;
 
       // Bind fs_handle to fs
       fs_handle = get_filesys(fsptr, fssize);
       if (!fs_handle) {
             *errnoptr = EFAULT;
-            return -1;  // Fail, bad filesystem given
+            return -1;  // Fail, bad fsptr or fssize given
       }    
 
       // TODO: inode = path_resolve(fs_handle, path);
@@ -201,20 +215,20 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
       //Reset the memory of the results container
       memset(stbuf, 0, sizeof(struct stat));   
 
-      // Populate stdbuf based on the inode
-      // stbuf->st_uid = uid;
-      // stbuf->st_gid = gid;
-      // stbuf->st_atim = inode->last_access; 
-      // stbuf->st_mtim = inode->last_mod;    
+      //Populate stdbuf based on the inode
+      stbuf->st_uid = uid;
+      stbuf->st_gid = gid;
+      stbuf->st_atim = inode->last_acc; 
+      stbuf->st_mtim = inode->last_mod;    
       
-      // if (inode->is_dir) {
-      //       stbuf->st_mode = S_IFDIR | 0755;
-      //       stbuf->st_nlink = inode->subdirs + 2;  // + 2 for . and ..
-      // } else {
-      //       stbuf->st_mode = S_IFREG | 0755;
-      //       stbuf->st_nlink = 1;
-      //       stbuf->st_size = inode->curr_size_bytes;
-      // } 
+      if (inode->is_dir) {
+            stbuf->st_mode = S_IFDIR | 0755;
+            stbuf->st_nlink = inode->subdirs + 2;  // + 2 for . and ..
+      } else {
+            stbuf->st_mode = S_IFREG | 0755;
+            stbuf->st_nlink = 1;
+            stbuf->st_size = inode->curr_size_bytes;
+      } 
 
       return 0;  // Success  
 }
@@ -509,3 +523,10 @@ int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
 
 /* End Our 13 implementations  -------------------------------------------- */
 
+
+/* Begin testing/debug  --------------------------------------------------- */
+int main() 
+{
+    // printf("%d", is_valid_filename("test"));
+    return 0;
+}
