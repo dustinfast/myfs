@@ -29,7 +29,7 @@
 /* Helper types and functions */
 
 // Helper const denoting if a mem chunk has been initialized to a fs or not.
-#define MYFS_MAGIC ((uint32_t) (UINT32_C(0xdeaddocs)))
+#define MAGIC_NUM ((uint32_t) (UINT32_C(0xdeadd0c5)))
 
 // Memory block structure - adapted from clauter's in-class lecture (DF):
 struct __myfs_memory_block_t {  // MemBlock
@@ -65,21 +65,15 @@ struct __myfs_handle_t {      // FSHandle
       If path not a valid file or directory: returns -1  w/error in *errnoptr.
       If path is a valid file or directory: returns 0 with file/dir info
         copied to stbuf as -
-            dev_t     st_dev;         ID of device containing file 
-            ino_t     st_ino;         Inode number 
-            *mode_t   st_mode;        File type and mode as fixed values:
-                                                S_IFDIR | 0755 for directories,
-                                                S_IFREG | 0755 for files
-            *nlink_t  st_nlink;       Number of hard links 
-                                          (as many as there are subdirectories,
-                                          not files,for directories (including 
-                                          . and ..), or just 1 for files)
-            *uid_t    st_uid;         User ID of owner (from args)
-            *gid_t    st_gid;         Group ID of owner (from args)
-            dev_t     st_rdev;        Device ID (if special file) 
-            *off_t    st_size;        Real file size, in bytes (for files only)
-            st_atim   ??
-            st_mtim   ??
+            mode_t        File type and mode as fixed values:
+                                    S_IFDIR | 0755 for directories,
+                                    S_IFREG | 0755 for files
+            nlink_t       Count of subdirectories (w/ . & ..), or just 1 if file)
+            uid_t         Owners's user ID (from args)
+            gid_t         Owner's group ID (from args)
+            off_t         Real file size, in bytes (for files only)
+            st_atim                  Last access time
+            st_mtim                  Last modified time
 
    Example usage:
       struct fuse_context *context = fuse_get_context();
@@ -94,9 +88,9 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
     // The following was adapted from clauter's in-class lecture (DF):
 
     __myfs_handle_t handle;   // fs handle
-    __myfs_indode_t *node;    // node ptr
+    __myfs_inode_t *node;    // node ptr
 
-      // Init handle to fs
+      // Bind handle to fs
       handle = __myfs_get_handle(fsptr, fssize)
       if (!handle) {
             *errnoptr = EFAULT;
@@ -113,19 +107,19 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
       // Reset the memory of the results container
       memset(stbuf, 0, sizeof(struct stat));
 
-      // Populate stat buffer based on the node
+      // Populate results container based on the node
       stbuf->st_uid = uid;
       stbuf->st_gid = gid;
-      stbuf->st_atim = node->times[0]; // TODO: time[0]?
-      stbuf->st_mtim = node->times[1]; // TODO: time[1]?
+      stbuf->st_atim = node->last_access; 
+      stbuf->st_mtim = node->last_mod;
 
       // TODO: node->value.directory...
-      if (node->type == DIRECTORY) {
+      if (node->is_dir) {
             stbuf->st_mode = S_IFDIR | 0755;
-            stbuf->st_nlink = node->value.directory.number_children + ((size_t) 2);
+            stbuf->st_nlink = node->subdirs + ((size_t) 2);
       } else {
             stbuf->st_mode = S_IFREG | 0755;
-            stbuf->st_size = node->value.file.size;
+            stbuf->st_size = node->curr_size;
             stbuf->st_nlink = 1;
       }
 

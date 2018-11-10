@@ -31,6 +31,7 @@ and ptrs to either a File or Dir obejct instance. */
 typedef struct Inode { 
     char filename[FNAME_MAXLEN];  // This file's (or dir's) label
     int is_dir;                   // 1 = node reprs a dir, else reprs a file
+    int subdirs;                  // Count of subdirs (iff is_dir == 1)
     size_t max_size_bytes;        // Max size (before grow needed)
     size_t curr_size_bytes;       // Currently used space (of max_size)
     struct timespec last_access;  // Last access time
