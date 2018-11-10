@@ -13,6 +13,7 @@
     fusermount -u ~/fuse-mnt
 */
 
+// TODO: Remove un-needed includes
 #include <stddef.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
@@ -27,10 +28,30 @@
 #include <stdio.h>
 
 
-/* Helper types and functions */
+/* Helper types /functions */
+
+// Helper const denoting if a mem chunk has been initialized to a fs or not.
+#define MYFS_MAGIC ((uint32_t) (UINT32_C(0xdeaddocs)))
+
+// Memory block structure - adapted from clauter's in-class lecture (DF):
+struct __myfs_memory_block_t {  // MemBlock
+      size_t      size;
+      size_t      user_size;
+      __myfs_off_t next;
+} __myfs_memory_block_t;
+
+// Filesystem handle structure - adapted from clauter's in-lass lecture (DF):
+struct __myfs_handle_t {      // FSHandle
+      uint32_t    magic;
+      __myfs_off_t free_memory;
+      __myfs_off_t root dir;
+      size_t       size;
+} __myfs_handle_t;
+
 /* End of helper functions */
 
 
+/* -- __myfs_getattr_implem() -- */
 /* Implements the "stat" system call on the filesystem 
 
    Accepts:
@@ -38,13 +59,14 @@
       fssize      : size of fs pointed to by fsptr
       errnoptr    : Error container
       uid         : User ID of file/dir owner
-      gid         : Grtoup ID of file/dir owner
+      gid         : Group ID of file/dir owner
       path        : Path of the file/dir in question
       stbuf       : Results container
    
    Returns:
-      If path not a valid file or directory, returns -1  w/error in *errnoptr.
-      If path is a valid file or directory, returns 0 with file/dir info as -
+      If path not a valid file or directory: returns -1  w/error in *errnoptr.
+      If path is a valid file or directory: returns 0 with file/dir info
+        copied to stbuf as -
             dev_t     st_dev;         ID of device containing file 
             ino_t     st_ino;         Inode number 
             *mode_t   st_mode;        File type and mode as fixed values:
@@ -61,28 +83,19 @@
             st_atim   ??
             st_mtim   ??
 
-
    Example usage:
       struct fuse_context *context = fuse_get_context();
-
       struct __myfs_environment_struct_t *env;
       env = (struct __myfs_environment_struct_t *) (context->private_data);
-
-      int res = __myfs_getattr_implem(env->memory,
-                                    env->size,
-                                    &__myfs_errno,
-                                    env->uid,
-                                    env->gid,
-                                    path,
-                                    st);
-      if (res >= 0)
-        return res;
+      return THIS(env->memory, env->size, &err, env->uid, env->gid, path, st);
 */
 int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
                           uid_t uid, gid_t gid,
                           const char *path, struct stat *stbuf) {
 
-    __myfs_handle_t handle;   // fs handle?
+    // The following was adapted from clauter's in-class lecture (DF):
+
+    __myfs_handle_t handle;   // fs handle
     __myfs_indode_t *node;    // node ptr
 
       // Init handle to fs
@@ -93,7 +106,7 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
       }
 
       // Associate the given path with a node in the fs
-      node = myfs_path_resolve(handle, path);
+      node = __myfs_path_resolve(handle, path);
       if (!node) {
             *errnoptr = ENOENT;
             return -1;  // Fail, bad path given
@@ -105,9 +118,10 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
       // Populate stat buffer based on the node
       stbuf->st_uid = uid;
       stbuf->st_gid = gid;
-      stbuf->st_atim = node->times[0];
-      stbuf->st_mtim = node->times[1];
+      stbuf->st_atim = node->times[0]; // TODO: time[0]?
+      stbuf->st_mtim = node->times[1]; // TODO: time[1]?
 
+      // TODO: node->value.directory...
       if (node->type == DIRECTORY) {
             stbuf->st_mode = S_IFDIR | 0755;
             stbuf->st_nlink = node->value.directory.number_children + ((size_t) 2);
@@ -118,13 +132,6 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
       }
 
       return 0;  // Success
-
-
-
-
-
-
-    // Write information about the file given by path to stbuf
 
   return -1;
 }

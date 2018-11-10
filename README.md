@@ -16,7 +16,7 @@ offsets from the start of the mem region.
 * Must support all the 13 operations stubbed out below.
 * Must support access and modification times and statfs info.
 Needs not support: access rights, links, symbolic links. 
-* Is of size fssize pointed to by fsptr (Size of  memory region >= 2048)
+* Is of size fssize pointed to by fsptr (Size of memory region >= 2048)
 * On mounted for the first time, the whole memory region of size fssize
     pointed to by fsptr reads as zero-bytes. 
 * On unmounted, memory is written to backup-file. 
@@ -24,7 +24,7 @@ Needs not support: access rights, links, symbolic links.
     (only writes whats inside virtual memory address space to backup-file.) 
 * On mount from backup-file, same data appears at the newly mapped vaddress. 
 
-*May use libc functions, ex: malloc, calloc, free, strdup, strlen, 
+* May use libc functions, ex: malloc, calloc, free, strdup, strlen, 
 strncpy, strchr, strrchr, memset, memcpy. 
       
 ### Professor's Advice:     
@@ -54,10 +54,6 @@ strncpy, strchr, strrchr, memset, memcpy.
          whenever the memory space is fresh. That mechanism can be
          implemented in the form of a filesystem handle into which the
          filesystem raw memory pointer and sizes are translated.
-         Check that the filesystem does not get reinitialized at mount
-         time if you initialized it once and unmounted it but that all
-         pieces of information (in the handle) get read back correctly
-         from the backup-file. 
 
    (2)   Design/implement functions to find and allocate free memory
          regions inside the filesystem memory space. There need to be 
