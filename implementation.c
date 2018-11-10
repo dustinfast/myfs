@@ -1,6 +1,4 @@
-/*
-
-  MyFS: a tiny file-system based on FUSE - Filesystem in Userspace
+/* MyFS: a tiny file-system based on FUSE - Filesystem in Userspace
 
   Usage:
     gcc -Wall myfs.c implementation.c `pkg-config fuse --cflags --libs` -o myfs
