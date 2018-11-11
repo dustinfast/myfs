@@ -43,7 +43,8 @@
     |______________|________________________|
 
 
-    TODO: Data for a folder's memory block is layed out as:
+    The data field for a folder's memory block is layed out as:
+    "path:corresponding inode offset (from fsptr)
 
 
 /* End File System Documentatin ----------------------------------------- */
@@ -51,10 +52,10 @@
 /* Begin Our Definitions -------------------------------------------------- */
 
 
-#define FS_ROOTPATH ("/")                   // File system's root path
+#define FS_ROOTPATH ("/\0")                 // File system's root path
+#define FS_BLOCK_SZ_KB (1)                  // Total kbs of each memory block
 #define FNAME_MAXLEN (256)                  // Max length of any filename
 #define MAGIC_NUM (UINT32_C(0xdeadd0c5))    // Num for denoting block init
-#define FS_BLOCK_SZ_KB (1)                  // Total kbs of each memory block
 
 // Inode -
 // An Inode represents the meta-data of a file or folder.
@@ -128,7 +129,7 @@ static int is_valid_filename(char *fname) {
 
     for (char *c = fname; *c != '\0'; c++) {
         ord = (int) *c;
-        if (ord < 48 || ord > 122)
+        if (ord < 32 || ord  == 47 || ord > 122)
             return 0;  // illegal ascii char found
         len++;
     }
@@ -627,7 +628,7 @@ void print_inode_debug(Inode *inode) {
     strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_acc->tv_sec));
     printf("    last_acc            : %s.%09ld\n", buff, inode->last_acc->tv_sec);
     strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_mod->tv_sec));
-    printf("    last_acc            : %s.%09ld\n", buff, inode->last_mod->tv_sec);
+    printf("    last_mod            : %s.%09ld\n", buff, inode->last_mod->tv_sec);
     printf("    firstblock_offset   : %lu\n", (lui)inode->firstblock_offset);     
     }
 
