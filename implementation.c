@@ -44,7 +44,7 @@
 
 
     The data field for a folder's memory block is layed out as:
-    "path:corresponding inode offset (from fsptr)
+    ".:corresponding inode offset (from fsptr)\n
 
 
 /* End File System Documentatin ----------------------------------------- */
@@ -112,15 +112,15 @@ typedef struct FSHandle {
 /* Begin Our Utility helpers ---------------------------------------------- */
 
 
-// Returns a ptr to the file system's mem address at the given offset.
+// Returns a ptr to a mem address in the file system given an offset.
 static void* ptr_from_offset(FSHandle *fs, size_t offset) {
-    return fs + offset;  // TODO: Needs tested
+    return (void*)((long unsigned int)fs + offset);
 }
 
 // Returns an offset from the filesystems start address for the given ptr.
-static void* offset_from_ptr(FSHandle *fs, void *ptr) {
-    return (void*)((void*)fs - ptr);  // TODO: Needs tested
-}
+// static int offset_from_ptr(FSHandle *fs, void *ptr) {
+//     return ptr - fs;
+// }
 
 /* Returns 1 iff fname is legal ascii chars and within max length, else 0. */
 static int is_valid_filename(char *fname) {
@@ -129,7 +129,7 @@ static int is_valid_filename(char *fname) {
 
     for (char *c = fname; *c != '\0'; c++) {
         ord = (int) *c;
-        if (ord < 32 || ord  == 47 || ord > 122)
+        if (ord < 32 || ord == 44 || ord  == 47 || ord > 122)
             return 0;  // illegal ascii char found
         len++;
     }
@@ -155,6 +155,20 @@ static void set_inode_lasttimes(Inode *inode, int set_modified) {
 /* End Our Utility helpers ------------------------------------------------ */
 /* Begin Our FS helpers --------------------------------------------------- */
 
+
+// TODO: Inode* resolve_path(FSHandle *fs, const char *path) {
+// TODO: void* get_file_data(FSHandle *fs, const char *path) {
+
+// Sets the data field and updates size fields for file denoted by given inode.
+static void* set_file_data(FSHandle *fs, Inode *inode, char *data, size_t sz) {
+    MemHead *memblock = ptr_from_offset(fs, (size_t)inode->firstblock_offset);
+    // int i = offset_from_ptr(fs, memblock);
+    printf("    test1         : %lu\n", (long unsigned int)memblock);
+    // printf("    test2         : %d\n", (long unsigned int)memblock);
+
+
+    // If sz is larger than in a single block
+}
 
 /* Maps a filesystem of size fssize onto fsptr and returns the fs's handle. */
 static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
@@ -204,10 +218,10 @@ static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
 
         // // Set up root dir 
         // TODO: Write root dir table data w/. and ..
-        fs->root_dir->is_free = (int*) 0;
+        fs->root_dir->is_free = (int*) 1;
         fs->root_dir->offset_next = NULL;         // Only single block used
         fs->root_dir->data_size_b = (size_t*) 0;  // TODO: Update based on data
-        
+
         // Set up root inode
         strncpy(fs->root_inode->fname, FS_ROOTPATH, str_len(FS_ROOTPATH));
         fs->root_inode->is_dir = (int*) 1;
@@ -216,14 +230,12 @@ static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
         fs->root_inode->max_size_b = (size_t*) DATAFIELD_SZ_B;
         set_inode_lasttimes(fs->root_inode, 1);
         fs->root_inode->firstblock_offset = (size_t*) rootdir_offset;
+        
+        set_file_data(fs, fs->root_inode, "test", 4);
     } 
 
     return fs;   
 }
-
-// TODO: Inode* resolve_path(FSHandle *fs, const char *path) {
-// TODO: void* get_file_data(FSHandle *fs, const char *path) {
-// TODO: void* set_file_data(FSHandle *fs, const char *path, char *buf) {
 
 
 /* End Our FS helpers ----------------------------------------------------- */
@@ -648,7 +660,7 @@ int main()
 {
     // Print welcome & struct size details
     printf("------------- File System Test Space -------------\n");
-    printf("---------------------------------------------------\n\n");
+    printf("--------------------------------------------------\n\n");
     print_struct_debug();
     printf("\n");
       
@@ -676,11 +688,11 @@ int main()
 	// // Create a 8KB test file
 	// create_file(&fs->root, &fs->head, 8, FS_ROOTPATH, "testfile", 0);
 
-    // printf("Getting filesystem handle of existing fs...\n");
+    // printf("\nGetting filesystem handle of existing fs...\n");
     // fs = NULL;
     // fs = get_filesys_handle(fsptr, fssize);
 
-    // printf("\nGot handle successfully - ");
+    // printf("Got handle successfully - ");
     // print_fs_debug(fs);
 
 
