@@ -42,7 +42,7 @@ size_t kb_to_bytes(size_t size) {
 
 /* Returns the given number of bytes converted to kilobytes.  */
 size_t bytes_to_kb(size_t size) {
-    return (size / BYTES_IN_KB * 1.0);
+    return (1.0 * size / BYTES_IN_KB);
 }
 
 /* Returns 1 if given bytes are alignable on the given block_sz, else 0. */
