@@ -28,12 +28,22 @@
 
 /* Begin File System Documentatin -----------------------------------------
     
-    File system structure is:
+    File system structure in memory is:
+     ___________________________________________________________________
+    |   FSHandle    |       Inodes          |       Memory Blocks       | 
+    |_______________|_______________________|___________________________|
+    ^               ^                       ^
+    fsptr           Inode Segment           Memory Blocks segment
+                    (0th is root inode)     (0th is root dir memory block)
 
 
-    Block, MemHead, FSHandle
+    Memory blocks look like:
+     _______________________________________
+    |   MemHead    |       Data             |
+    |______________|________________________|
 
-    To look up a file by a given absolute path:
+
+    TODO: Data for a folder's memory block is layed out as:
 
 
 /* End File System Documentatin ----------------------------------------- */
