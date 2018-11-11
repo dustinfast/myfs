@@ -30,6 +30,9 @@
     
     File system structure is:
 
+
+    Block, MemHead, FSHandle
+
     To look up a file by a given absolute path:
 
 
@@ -39,49 +42,60 @@
 
 
 #define FS_ROOTPATH ("/")                   // File system's root path
-#define BLOCK_SZ_BYTES (4 * BYTES_IN_KB)    // Size of each MemBlock in the fs
 #define FNAME_MAXLEN (256)                  // Max length of any filename
 #define MAGIC_NUM (UINT32_C(0xdeadd0c5))    // Num for denoting block init
+#define FS_BLOCK_SZ_KB (1)                  // Total size in kb of each file
+                                            // system memory block
 
-/* Inode header -
-An Inode represents the meta-data of a file or directory. */
+// Inode -
+// An Inode represents the meta-data of a file or folder.
 typedef struct Inode { 
     char fname[FNAME_MAXLEN];   // The file/folder's label
     int is_dir;                 // if == 1, node represents a dir, else a file
     int subdirs;                // Subdir count (unused unless is_dir == 1)
-    size_t curr_size_bytes;     // Current file/dir size, in bytes
-    size_t max_size_bytes;      // Max sz before needing more MemBlocks
+    size_t curr_size_b;         // Current file/dir size, in bytes
+    size_t max_size_b;          // Max sz before needing more mem blocks
     struct timespec last_acc;   // Last access time
     struct timespec last_mod;   // Last modified time
-    void *memblock_offset;      // Offset from fsptr to file's 1st memblock
+    size_t *memblock_offset;    // Byte offset from fsptr to file's 1st memblock
+                                // (NULL if inode is free/unused)
 } Inode ;
 
-/* Memory block header -
-Each file and/or folder uses a number of memory blocks. Block size is
-determined by BLOCK_SZ_BYTES. */
-typedef struct MemBlock {
-    size_t size_bytes;        // Mem block total size
-    size_t user_size_bytes;   // Size of data field
-    struct MemBlock *next;    // Offset to next MemBlock file/dir uses, if any
-} MemBlock;
+// Memory block header -
+// Each file/dir uses one or more memory blocks.
+typedef struct MemHead {
+    size_t *data_size_b;    // Size of data field used
+    int *offset_next;       // +/- offset to next block of file's data, if any.
+                            // (data field immediately follows this field)
+} MemHead;
 
-/* Top-level Filesystem "handle"
-A file system is a list of inodes with each inode pointing to the offset of the 
-first memory block used by the file/dir each inode represents. */
+// Top-level filesystem handle
+// A file system is a list of inodes where each knows the offset of the first 
+// memory block for that file/dir.
 typedef struct FSHandle {
     uint32_t magic;                 // "Magic" number
-    size_t size_bytes;              // Bytes available to fs (w/out this handle) 
-    struct Inode *root_inode;       // Ptr to fs root dir's inode
+    size_t size_b;                  // Fs sz from inode seg to end of mem blocks
+    struct Inode *root_inode;       // Ptr to start of inode segment
+    struct MemHead *root_dir;       // Ptr to start of mem blocks segment
     struct Inode *first_free;       // Ptr to the "free mem blocks" list
 } FSHandle;
 
-// Sizes of the above structs
-#define INODE_OBJ_SZ sizeof(Inode)          // Size of Inode struct in bytes
-#define MEMBLK_OBJ_SZ sizeof(MemBlock)      // Size of MemBlock struct in bytes
-#define FSHANDLE_OBJ_SZ sizeof(FSHandle)    // Size of FSHandle struct in bytes
+// Size in bytes of the filesystem's structs (above)
+#define ST_SZ_INODE sizeof(Inode)
+#define ST_SZ_MEMHEAD sizeof(MemHead)
+#define ST_SZ_FSHANDLE sizeof(Inode)  
 
-// Min requestable filesys size = FSHandle + 1 inode + 1 root dir + 1 memblock
-#define MIN_FS_SZ_BYTES (FSHANDLE_OBJ_SZ + MEMBLK_OBJ_SZ) 
+// Size of each memory block's data field (ensuring kb aligned w/header) 
+#define DATAFIELD_SZ_B (FS_BLOCK_SZ_KB * BYTES_IN_KB - ST_SZ_MEMHEAD)    
+
+// Memory block size = MemHead + data field of size DATAFIELD_SZ_B
+#define MEMBLOCK_SZ_B ST_SZ_MEMHEAD + DATAFIELD_SZ_B
+
+// Min requestable fs size = FSHandle + 1 inode + root dir block + 1 free block
+#define MIN_FS_SZ_B sizeof(FSHandle) + sizeof(Inode) + (2*MEMBLOCK_SZ_B) 
+
+// Offset in bytes from fsptr to start of inodes segment
+#define FS_START_OFFSET sizeof(FSHandle)
 
 
 /* End Our Definitions ---------------------------------------------------- */
@@ -105,6 +119,18 @@ static int is_valid_filename(char *fname) {
     return 0;
 }
 
+/* Sets the last access time for the given node to the current time.
+If set_modified, also sets the last modified time to the current time. */
+static void set_inode_lasttimes(Inode *inode, int set_modified) {
+    if (!inode) return;  // Validate node
+
+    struct timespec tspec;
+    clock_gettime(CLOCK_REALTIME, &tspec);  // Populate timespec
+
+    inode->last_acc = tspec;
+    if (set_modified)
+        inode->last_mod = tspec;
+}
 
 /* End Our Utility helpers ------------------------------------------------ */
 /* Begin Our FS helpers --------------------------------------------------- */
@@ -113,44 +139,66 @@ static int is_valid_filename(char *fname) {
 // TODO: Inode* resolve_path(FSHandle *fs, const char *path) {
 // TODO: void* get_file_data(FSHandle *fs, const char *path) {
 
-/* Maps a file system of size fssize onto the given fsptr and returns *fs. */
+/* Maps a filesystem of size fssize onto fsptr and returns the fs's handle. */
 static FSHandle* get_filesys(void *fsptr, size_t size) {
-    if (size < MIN_FS_SZ_BYTES) return NULL;   // Validate size specified
+    if (size < MIN_FS_SZ_B) return NULL;   // Validate size specified
 
-    FSHandle *fs = (FSHandle*) fsptr;  // Map filesys onto given mem
-    size_t fs_size = size - FSHANDLE_OBJ_SZ;
+    FSHandle *fs = (FSHandle*) fsptr;           // Map filesys onto given mem
+    size_t fs_size = size - FS_START_OFFSET;    // Space available to fs
+    void *fs_start = fsptr + FS_START_OFFSET;   // Inode segment start addr
+    void *root_dir_start = NULL;                // Mem block segment start addr
+    void *first_free_start = NULL;              // First free mem block addr
+    size_t rootdir_offset = -1;                 // Root dir offset from fsptr
+    size_t firstfree_offset = -1;               // First free block offset
 
-    // If memory hasn't been set up as a file system, do it now
+    // If the memory hasn't yet been initialized as a file system, do it now
     if (fs->magic != MAGIC_NUM) {
-        memset(fsptr + FSHANDLE_OBJ_SZ, 0, fs_size);    // Zero-fill mem space
-
-        // Populate file system data members
-        fs->magic = MAGIC_NUM;
-        fs->size_bytes = fs_size;
-
-        fs->root_inode = (Inode*) (fsptr + FSHANDLE_OBJ_SZ);
-        strncpy(FS_ROOTPATH, fs->root_inode->fname, 1);
-        fs->root_inode->is_dir = 1;
-        fs->root_inode->subdirs = 0;
-        fs->root_inode->max_size_bytes = 0;
-        fs->root_inode->curr_size_bytes = 0;
-        // fs->root_inode->last_acc = NULL;        // TODO
-        // fs->root_inode->last_mod = NULL;        // TODO
-        fs->root_inode->memblock_offset = NULL; // TODO
+        // Determine num inodes & memblocks fs_size will allow (1:1 ratio)
+        int n_blocks = 0;
+        int n_inodes = 0;
+        while (n_blocks * DATAFIELD_SZ_B + n_inodes * ST_SZ_INODE < fs_size) {
+            n_blocks++;
+            n_inodes++;
+        }
         
-        fs->first_free = NULL;                  // TODO
+        // Denote root dir and first free start addresses and offsets
+        root_dir_start = fs_start + ST_SZ_INODE * n_inodes;  // 0th mem block
+        first_free_start = root_dir_start + MEMBLOCK_SZ_B;   // 1th mem block
 
-        // Fill the rest of the allocated space with mem block(s?) & add as free
-        // MemBlock *memblock = (MemBlock*);
-        // int memblock_offset = fsptr + FSHANDLE_OBJ_SZ + INODE_OBJ_SZ;
-        // size_t grand_blocksz = MEMBLK_OBJ_SZ + BLOCK_SZ_BYTES;
-        // size_t fs_boundry = fsptr + size;
-        // while (memblock_offset < fs_boundry - BLOCK_SZ_BYTES) {
-        // int num_blocks = fs_size / BLOCK_SZ_BYTES;
-        // for (int i = 0; i < num_blocks; i++) {
-        //     Inode *new_block = malloc(MEMBLK_OBJ_SZ);
-        //     push_free_memblock(fs, i);
-        // }
+        rootdir_offset = root_dir_start - fs_start;         // 0th mem block
+        firstfree_offset = rootdir_offset + MEMBLOCK_SZ_B;  // 1th mem block
+
+         // debug
+        printf("   New memspace detected - formatting as new file system...\n");
+        printf("      Inodes                      : %d\n",n_inodes);
+        printf("      Memory Blocks               : %d\n",n_blocks);
+        printf("      Inode segment start         : %lu\n", (long unsigned int)fs_start);
+        printf("      Mem blocks segment start    : %lu\n", (long unsigned int)root_dir_start);
+        printf("      Rootdir block offset        : %lu\n", (long unsigned int)rootdir_offset);
+        printf("      First free block offset     : %lu\n", (long unsigned int)firstfree_offset);
+
+        // Format the entire memory space w/zero-fill
+        memset(fs_start, 0, fs_size);
+
+        // Populate fs data members
+        fs->magic = MAGIC_NUM;
+        fs->size_b = fs_size;
+        fs->root_inode = (Inode*) fs_start;
+        fs->root_dir = (MemHead*) root_dir_start;
+        fs->first_free = first_free_start;  
+
+        // // Set up root dir 
+        // fs->root_dir->offset_next = NULL;   // Only 1 block used
+        // fs->root_dir->data_size_b = 0;      // TODO: Write root dir table data w/. and ..
+        
+        // // Set up root inode
+        // strncpy(fs->root_inode->fname, FS_ROOTPATH, str_len(FS_ROOTPATH));
+        // fs->root_inode->is_dir = 1;
+        // fs->root_inode->subdirs = 0;
+        // fs->root_inode->curr_size_b = 0;  // TODO
+        // fs->root_inode->max_size_b = DATAFIELD_SZ_B;
+        // set_inode_lasttimes(fs->root_inode, 1);
+        // fs->root_inode->memblock_offset = (int*)rootdir_offset
     } 
 
     return fs;   
@@ -227,7 +275,7 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
       } else {
             stbuf->st_mode = S_IFREG | 0755;
             stbuf->st_nlink = 1;
-            stbuf->st_size = inode->curr_size_bytes;
+            stbuf->st_size = inode->curr_size_b;
       } 
 
       return 0;  // Success  
@@ -522,11 +570,98 @@ int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
 }
 
 /* End Our 13 implementations  -------------------------------------------- */
+/* Begin DEBUG  ----------------------------------------------------------- */
 
 
-/* Begin testing/debug  --------------------------------------------------- */
+// Prints filesystem data structure sizes. For debug.
+void print_struct_details() {
+    printf("File system uses the following data structures:\n");
+    printf("    FSHandle             : %lu bytes\n", ST_SZ_FSHANDLE);
+    printf("    Inode                : %lu bytes\n", ST_SZ_INODE);
+    printf("    MemHead              : %lu bytes\n", ST_SZ_MEMHEAD);
+    printf("    Data Field           : %lu bytes\n", DATAFIELD_SZ_B);
+    printf("    Memory Block         : %lu bytes (%lu kb)\n", 
+           MEMBLOCK_SZ_B,
+           bytes_to_kb(MEMBLOCK_SZ_B));
+}
+
+// // Prints memory block stats
+// void print_memblock_details(MemHead *memhead) {
+//     printf("    data_size_b      : %lu\n", memhead->data_size_b);
+//     printf("    offset_next      : %lu\n", memhead->offset_next);
+// }
+
+// // Prints inode stats
+// void print_inode_details(Inode *inode) {
+//     printf("    fname           : %s\n", inode->fname);
+//     printf("    is_dir          : %ld\n", inode->is_dir);
+//     printf("    subdirs         : %ld\n", inode->subdirs);
+//     printf("    curr_size_b     : %lu\n", inode->curr_size_b);
+//     printf("    max_size_b      : %lu\n", inode->max_size_b);
+//     printf("    last_acc        : %d\n", inode->last_acc->tv_sec);
+//     printf("    last_mod        : %lu\n", inode->last_mod->tv_sec);
+//     printf("    memblock_offset : %lu\n", inode->memblock_offset);   
+// }
+
+// Prints filesystem stats. For debug.
+void print_fs_details(FSHandle *fs) {
+    printf("File system properties: \n");
+    printf("    fs (fsptr)          : %lu\n", (long unsigned int)fs);
+    printf("    fs->size_b          : %lu (%lu kb)\n", fs->size_b, bytes_to_kb(fs->size_b));
+    printf("    fs->magic           : %lu\n", (long unsigned int)fs->magic);
+    printf("    fs->root_inode      : %lu\n", (long unsigned int)fs->root_inode);
+    printf("    fs->root_dir        : %lu\n", (long unsigned int)fs->root_dir);
+    printf("    fs->first_free      : %lu\n", (long unsigned int)fs->first_free);
+    // printf("Free space      : %lu bytes (%lu kb)\n", space_free(&fs), bytes_to_kb(space_free(&fs));
+}
+
+
+
 int main() 
 {
-    // printf("%d", is_valid_filename("test"));
-    return 0;
-}
+    // Print welcome & struct size details
+    printf("------------- File System Test Space -------------\n");
+    printf("---------------------------------------------------\n\n");
+    print_struct_details();
+    printf("\n");
+      
+    // Allocate mem space file system will occupy (usually done by m fs.c)
+    size_t fssize = kb_to_bytes(16) + ST_SZ_FSHANDLE;  // kb align after handle
+    void *fsptr = malloc(fssize);
+
+    // Associate the filesys with a handle.
+    // Note: The two vars above are used as args to the call immeidately below, 
+    // Each of our 13 stubs will need a call exactly like this one to "recover"
+    // the global filesystem.
+    printf("Setting up filesystem for the first time...\n");
+    FSHandle *fs = get_filesys(fsptr, fssize);
+
+    printf("\nSetup successful - ");
+    print_fs_details(fs);
+    
+    // Print initial fs state
+    // printf("\nFilesystem intitialized:\n");
+	// printf("(one %lu KB block used for root dir)\n", bytes_to_kb(BLOCK_SZ_B));
+    // print_fs_space(fs);
+    // print_fs_blockstates(fs);
+    
+	// // Create a 8KB test file
+	// create_file(&fs->root, &fs->head, 8, FS_ROOTPATH, "testfile", 0);
+
+    // // Print state after file creation
+	// printf("\nCreated 8 KB test file in root dir:\n");
+	// printf("(one %lu KB block used for root dir)\n", bytes_to_kb(BLOCK_SZ_B));
+	// printf("(two %lu KB blocks used for test file)\n", bytes_to_kb(BLOCK_SZ_B));
+    // print_fs_space(fs);
+    // print_fs_blockstates(fs);
+
+
+    // TODO: Write fs contents to backup file
+
+    printf("\nExiting...\n");
+    free(fsptr);
+
+    return 0; 
+} 
+
+/* End DEBUG  ------------------------------------------------------------- */

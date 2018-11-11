@@ -1,8 +1,9 @@
-/*
-a4_fs definitions - A collection of definitions and helper funcs for a4_fs.c
+/*  myfs_includes.h - A collection of definitions and helper funcs for myfs.
 
-Contributors: Dustin Fast
+    Contributors: Dustin Fast
 */
+
+#include <time.h>
 
 
 /* Begin Definitions ---------------------------------------------------- */
@@ -41,7 +42,7 @@ size_t kb_to_bytes(size_t size) {
 
 /* Returns the given number of bytes converted to kilobytes.  */
 size_t bytes_to_kb(size_t size) {
-    return (size / BYTES_IN_KB);
+    return (size / BYTES_IN_KB * 1.0);
 }
 
 /* Returns 1 if given bytes are alignable on the given block_sz, else 0. */
