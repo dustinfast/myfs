@@ -609,17 +609,15 @@ void print_inode_debug(Inode *inode) {
     char buff[100];
 
     printf("Inode at %lu:\n", (lui)inode);
-    // printf("    fname           : %s\n", inode->fname);
+    printf("    fname               : %s\n", inode->fname);
     printf("    is_dir              : %lu\n", (lui)inode->is_dir);
     printf("    subdirs             : %lu\n", (lui)inode->subdirs);
     printf("    curr_size_b         : %lu\n", (lui)inode->curr_size_b);
     printf("    max_size_b          : %lu\n", (lui)inode->max_size_b);
-
     strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_acc->tv_sec));
     printf("    last_acc            : %s.%09ld\n", buff, inode->last_acc->tv_sec);
     strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_mod->tv_sec));
     printf("    last_acc            : %s.%09ld\n", buff, inode->last_mod->tv_sec);
-    
     printf("    firstblock_offset   : %lu\n", (lui)inode->firstblock_offset);     
     }
 
@@ -657,11 +655,12 @@ int main()
     printf("\nSetup successful - ");
     print_fs_debug(fs);
 
+    printf("\nExamining root inode - The ");
+    print_inode_debug(fs->root_inode);
+
     printf("\nExamining root dir - The ");
     print_memblock_debug(fs->root_dir);
     
-    printf("\nExamining root inode - The ");
-    print_inode_debug(fs->root_inode);
 
 	// // Create a 8KB test file
 	// create_file(&fs->root, &fs->head, 8, FS_ROOTPATH, "testfile", 0);
