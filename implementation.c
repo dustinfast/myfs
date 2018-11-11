@@ -162,20 +162,20 @@ static FSHandle* get_filesys(void *fsptr, size_t size) {
         }
         
         // Denote root dir and first free start addresses and offsets
-        root_dir_start = fs_start + ST_SZ_INODE * n_inodes;  // 0th mem block
-        first_free_start = root_dir_start + MEMBLOCK_SZ_B;   // 1th mem block
+        root_dir_start = fs_start + (ST_SZ_INODE * n_inodes);  // 0th memblock
+        first_free_start = root_dir_start + MEMBLOCK_SZ_B;    // 1th memblock
 
-        rootdir_offset = root_dir_start - fs_start;         // 0th mem block
-        firstfree_offset = rootdir_offset + MEMBLOCK_SZ_B;  // 1th mem block
+        rootdir_offset = root_dir_start - fs_start;         // 0th memblock
+        firstfree_offset = rootdir_offset + MEMBLOCK_SZ_B;  // 1th memblock
 
          // debug
-        printf("   New memspace detected - formatting as new file system...\n");
-        printf("      Inodes                      : %d\n",n_inodes);
-        printf("      Memory Blocks               : %d\n",n_blocks);
-        printf("      Inode segment start         : %lu\n", (long unsigned int)fs_start);
-        printf("      Mem blocks segment start    : %lu\n", (long unsigned int)root_dir_start);
-        printf("      Rootdir block offset        : %lu\n", (long unsigned int)rootdir_offset);
-        printf("      First free block offset     : %lu\n", (long unsigned int)firstfree_offset);
+        printf("    *New memspace detected - formatting as new file system...\n");
+        printf("    Inodes                      : %d\n",n_inodes);
+        printf("    Memory Blocks               : %d\n",n_blocks);
+        printf("    Inode segment start         : %lu\n", (long unsigned int)fs_start);
+        printf("    Mem blocks segment start    : %lu\n", (long unsigned int)root_dir_start);
+        printf("    Rootdir block offset        : %lu\n", (long unsigned int)rootdir_offset);
+        printf("    First free block offset     : %lu\n", (long unsigned int)firstfree_offset);
 
         // Format the entire memory space w/zero-fill
         memset(fs_start, 0, fs_size);
@@ -620,6 +620,7 @@ void print_fs_details(FSHandle *fs) {
 int main() 
 {
     // Print welcome & struct size details
+    printf("---------------------------------------------------\n\n");
     printf("------------- File System Test Space -------------\n");
     printf("---------------------------------------------------\n\n");
     print_struct_details();
