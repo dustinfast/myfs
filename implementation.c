@@ -39,7 +39,7 @@
 
     Memory blocks look like:
      _______________________________________
-    |   MemHead    |       Data             |
+    |   MemHead    |         Data           |
     |______________|________________________|
 
 
@@ -61,21 +61,21 @@
 // An Inode represents the meta-data of a file or folder.
 typedef struct Inode { 
     char fname[FNAME_MAXLEN];   // The file/folder's label
-    int *is_dir;                // if == 1, node represents a dir, else a file
-    int *subdirs;               // Subdir count (unused unless is_dir == 1)
-    size_t *file_size_b;        // Current file/dir size, in bytes
-    struct timespec *last_acc;  // Last access time
-    struct timespec *last_mod;  // Last modified time
-    size_t *firstblock_offset;  // Byte offset from fsptr to file's 1st memblock
-                                // (NULL if inode is free/unused)
+    int *is_dir;                // if 1, node represents a dir, else a file
+    int *subdirs;               // Subdir count (unused if not is_dir)
+    size_t *file_size_b;        // File's/folder's data size, in bytes
+    struct timespec *last_acc;  // File/folder last access time
+    struct timespec *last_mod;  // File/Folder last modified time
+    int *offset_firstblk;       // Byte offset from fsptr to file/folder's 1st
+                                // memblock, or -1 if inode is free/unused
 } Inode;
 
 // Memory block header -
 // Each file/dir uses one or more memory blocks.
 typedef struct MemHead {
-    int *is_free;           // Denotes this block is free
-    size_t *data_size_b;    // Size of data field used
-    int *offset_next;       // +/- offset to next block of file's data, if any.
+    size_t *data_size_b;    // Size of data field occupied, or 0 if block free
+    int *offset_nextblk;    // Bytes offset (from fsptr) to next block of 
+                            // file's data, if any. Else -1.
                             // (data field immediately follows this field)
 } MemHead;
 
@@ -112,11 +112,11 @@ typedef struct FSHandle {
 
 
 // Returns a ptr to a mem address in the file system given an offset.
-static void* ptr_from_offset(FSHandle *fs, size_t *offset) {
+static void* ptr_from_offset(FSHandle *fs, int *offset) {
     return (void*)((long unsigned int)fs + (size_t)offset);
 }
 
-// Returns an offset from the filesystems start address for the given ptr.
+// Returns an int offset from the filesystem's start address for the given ptr.
 static int offset_from_ptr(FSHandle *fs, void *ptr) {
     return ptr - (void*)fs;
 }
@@ -160,15 +160,14 @@ static void set_inode_lasttimes(Inode *inode, int set_modified) {
 
 // Sets the data field and updates size fields for file denoted by given inode.
 static int set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
-    MemHead *memblock = ptr_from_offset(fs, inode->firstblock_offset);
+    MemHead *memblock = ptr_from_offset(fs, inode->offset_firstblk);
     void *data_field = memblock + ST_SZ_MEMHEAD;
 
     // Use a single block if sz will fit in one
     if (sz <= DATAFIELD_SZ_B) {
         strncpy(data_field, data, sz);
         memblock->data_size_b = (size_t*) sz;
-        memblock->is_free = (int*) 0;
-        memblock->offset_next = NULL;         // Only single block used
+        memblock->offset_nextblk = NULL;         // Only single block used
     }
 
     // Else use multiple blocks, if available
@@ -231,7 +230,7 @@ static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
         set_inode_lasttimes(fs->root_inode, 1);
         fs->root_inode->is_dir = (int*) 1;
         fs->root_inode->subdirs = 0;
-        fs->root_inode->firstblock_offset = (size_t*) rootdir_offset;
+        fs->root_inode->offset_firstblk = (int*) rootdir_offset;
         
         // Set up root dir 
         // TODO: Write root dir table data w/. and ..
@@ -626,9 +625,8 @@ typedef long unsigned int lui;
 // Print memory block stats
 void print_memblock_debug(MemHead *memhead) {
     printf("Memory block at %lu:\n", (lui)memhead);
-    printf("    is_free         : %lu\n", (lui)memhead->is_free);
     printf("    data_size_b     : %lu\n", (lui)memhead->data_size_b);
-    printf("    offset_next     : %lu\n", (lui)memhead->offset_next);
+    printf("    offset_nextblk  : %lu\n", (lui)memhead->offset_nextblk);
     printf("    data            : TODO%s\n",  (char*)(memhead + DATAFIELD_SZ_B));
 }
 
@@ -645,7 +643,7 @@ void print_inode_debug(Inode *inode) {
     printf("    last_acc            : %s.%09ld\n", buff, inode->last_acc->tv_sec);
     strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_mod->tv_sec));
     printf("    last_mod            : %s.%09ld\n", buff, inode->last_mod->tv_sec);
-    printf("    firstblock_offset   : %lu\n", (lui)inode->firstblock_offset);     
+    printf("    offset_firstblk     : %lu\n", (lui)inode->offset_firstblk);     
     }
 
 // Print filesystem sta ts
