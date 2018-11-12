@@ -191,66 +191,70 @@ static int set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
         return 0;
     }
 
-    // TODO: set_inode_lasttimes(inode, 1);
+    // TODO: set_inode_lasttimes(inode, 1) -- set_inode works from get_filesys, but not from here
     inode->file_size_b = (size_t*) sz;
 
     return 1;
 }
 
-/* Maps a filesystem of size fssize onto fsptr and returns the fs's handle. */
-static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
-    if (size < MIN_FS_SZ_B) return NULL;        // Validate size specified
+// Formats file system's memory space and initializes ptr fs.
+void init_filesys_mem(void *fsptr, size_t size, FSHandle *fs) {
+    if (size < MIN_FS_SZ_B) return; // Ensure adequate size given
 
-    FSHandle *fs = (FSHandle*) fsptr;           // Map filesys onto given mem
+    size_t fs_size = size - FS_START_OFFSET;    // Space available to fs
+    void *segs_start = fsptr + FS_START_OFFSET; // Start of fs segments
+    void *root_dir_start = NULL;                // Mem block segment start addr
+    size_t rootdir_offset = -1;                 // Root dir offset from fsptr
 
-    // If the memory hasn't yet been initialized as a file system, do it now
-    if (fs->magic != MAGIC_NUM) {
-        size_t fs_size = size - FS_START_OFFSET;    // Space available to fs
-        void *segs_start = fsptr + FS_START_OFFSET; // Start of fs segments
-        void *root_dir_start = NULL;                // Mem block segment start addr
-        size_t rootdir_offset = -1;                 // Root dir offset from fsptr
-        void *unused = NULL; // TODO: Removing causes segfault -- ??
+    memset(fsptr, 0, fs_size);                  // Format mem space w/zero-fill
 
-        // Determine num inodes & memblocks fs_size will allow (1:1 ratio)
-        int n_blocks = 0;
-        int n_inodes = 0;
-        while (n_blocks * DATAFIELD_SZ_B + n_inodes * ST_SZ_INODE < fs_size) {
-            n_blocks++;
-            n_inodes++;
-        }
-        
-        // Denote root dir and first free addresses abd ffsets
-        root_dir_start = segs_start + (ST_SZ_INODE * n_inodes);
-        rootdir_offset = root_dir_start - fsptr;
-
-        // debug
-        printf("    ** New memspace detected - formatting as new file system...\n");
-        printf("    Inodes                      : %d\n",n_inodes);
-        printf("    Memory Blocks               : %d\n",n_blocks);
-        printf("    Inodes segment start        : %lu\n", (long unsigned int)segs_start);
-        printf("    Mem blocks segment start    : %lu\n", (long unsigned int)root_dir_start);
-        printf("    Rootdir block offset        : %lu\n", (long unsigned int)rootdir_offset);
-
-        // Format the entire memory space w/zero-fill
-        memset(segs_start, 0, fs_size);
+    // Determine num inodes & memblocks fs_size will allow (1:1 ratio)
+    int n_blocks = 0;
+    int n_inodes = 0;
+    while (n_blocks * DATAFIELD_SZ_B + n_inodes * ST_SZ_INODE < fs_size) {
+        n_blocks++;
+        n_inodes++;
+    }
     
-        // Populate fs data members
-        fs->magic = MAGIC_NUM;
-        fs->size_b = fs_size;
-        fs->inode_seg = (Inode*) segs_start;
-        fs->mem_seg = (MemHead*) root_dir_start;
+    // Denote root dir and first free addresses abd ffsets
+    root_dir_start = segs_start + (ST_SZ_INODE * n_inodes);
+    rootdir_offset = root_dir_start - fsptr;
 
-        // Set up 0th inode as the root inode
-        strncpy(fs->inode_seg->fname, FS_ROOTPATH, str_len(FS_ROOTPATH));
-        set_inode_lasttimes(fs->inode_seg, 1);
-        fs->inode_seg->is_dir = (int*) 1;
-        fs->inode_seg->subdirs = 0;
-        fs->inode_seg->offset_firstblk = (int*) rootdir_offset;
-        
-        // Set up 0th memory block as the root directory
-        // TODO: Write root dir table data w/. and ..
-        set_filedata(fs, fs->inode_seg, "test\0", 5);
-    } 
+    // debug
+    printf("    ** New memspace detected - formatting as new file system...\n");
+    printf("    Inodes                      : %d\n",n_inodes);
+    printf("    Memory Blocks               : %d\n",n_blocks);
+    printf("    Inodes segment start        : %lu\n", (long unsigned int)segs_start);
+    printf("    Mem blocks segment start    : %lu\n", (long unsigned int)root_dir_start);
+    printf("    Rootdir block offset        : %lu\n", (long unsigned int)rootdir_offset);
+
+    // Populate fs data members
+    fs->magic = MAGIC_NUM;
+    fs->size_b = fs_size;
+    fs->inode_seg = (Inode*) segs_start;
+    fs->mem_seg = (MemHead*) root_dir_start;
+
+    // Set up 0th inode as the root inode
+    strncpy(fs->inode_seg->fname, FS_ROOTPATH, str_len(FS_ROOTPATH));
+    set_inode_lasttimes(fs->inode_seg, 1);
+    fs->inode_seg->is_dir = (int*) 1;
+    fs->inode_seg->subdirs = 0;
+    fs->inode_seg->offset_firstblk = (int*) rootdir_offset;
+    
+    // Set up 0th memory block as the root directory
+    // TODO: Write root dir table data w/. and ..
+    set_filedata(fs, fs->inode_seg, "test\0", 5);
+}
+
+// Maps a filesystem of size fssize onto fsptr and returns a handle to it.
+static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
+    // Map file system structure onto the given memory space
+    FSHandle *fs = (FSHandle*) fsptr;
+
+    // If the first few bytes aren't our magic number, the memory hasn't yet
+    // been initialized as a file system, so do it now.
+    if (fs->magic != MAGIC_NUM)
+        init_filesys_mem(fsptr, size, fs);
 
     return fs;   
 }
@@ -654,9 +658,9 @@ void print_inode_debug(Inode *inode) {
     printf("    is_dir              : %lu\n", (lui)inode->is_dir);
     printf("    subdirs             : %lu\n", (lui)inode->subdirs);
     printf("    file_size_b         : %lu\n", (lui)inode->file_size_b);
-    strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_acc->tv_sec));
-    printf("    last_acc            : %s.%09ld\n", buff, inode->last_acc->tv_sec);
-    strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_mod->tv_sec));
+    // strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_acc->tv_sec));
+    // printf("    last_acc            : %s.%09ld\n", buff, inode->last_acc->tv_sec);
+    // strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_mod->tv_sec));
     printf("    last_mod            : %s.%09ld\n", buff, inode->last_mod->tv_sec);
     printf("    offset_firstblk     : %lu\n", (lui)inode->offset_firstblk);     
     }
