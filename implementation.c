@@ -45,9 +45,10 @@
 /* End File System Documentation ------------------------------------------ */
 /* Begin Our Definitions -------------------------------------------------- */
 
-#define FS_ROOTPATH ("/\0")                 // File system's root path
+#define FS_ROOTPATH ("/")                   // File system's root path
 #define FS_BLOCK_SZ_KB (1)                  // Total kbs of each memory block
 #define FNAME_MAXLEN (256)                  // Max length of any filename
+#define BLOCKS_TO_INODES (1)                // Num of mem blocks to each inode
 #define MAGIC_NUM (UINT32_C(0xdeadd0c5))    // Num for denoting block init
 
 // Inode -
@@ -59,17 +60,16 @@ typedef struct Inode {
     size_t *file_size_b;        // File's/folder's data size, in bytes
     struct timespec *last_acc;  // File/folder last access time
     struct timespec *last_mod;  // File/Folder last modified time
-    int *offset_firstblk;       // Byte offset from fsptr to file/folder's 1st
-                                // memblock, or -1 if inode is free/unused
+    size_t *offset_firstblk;    // Byte offset from fsptr to file/folder's 1st
+                                // memblock, or 0 if inode is free/unused
 } Inode;
 
 // Memory block header -
 // Each file/dir uses one or more memory blocks.
 typedef struct MemHead {
     size_t *data_size_b;    // Size of data field occupied, or 0 if block free
-    int *offset_nextblk;    // Bytes offset (from fsptr) to next block of 
-                            // file's data, if any. Else -1.
-                            // (data field immediately follows this field)
+    size_t *offset_nextblk; // Bytes offset (from fsptr) to next block of 
+                            // file's data, if any. Else 0.
 } MemHead;
 
 // Top-level filesystem handle
@@ -78,6 +78,8 @@ typedef struct MemHead {
 typedef struct FSHandle {
     uint32_t magic;             // "Magic" number, for denoting mem ini'd
     size_t size_b;              // Fs sz from inode seg to end of mem blocks
+    int num_inodes;             // Num inodes the file system contains
+    int num_memblocks;          // Num memory blocks the file system contains
     struct Inode *inode_seg;    // Ptr to start of inodes segment
     struct MemHead *mem_seg;    // Ptr to start of mem blocks segment
 } FSHandle;
@@ -105,7 +107,7 @@ typedef struct FSHandle {
 
 
 // Returns a ptr to a mem address in the file system given an offset.
-static void* ptr_from_offset(FSHandle *fs, int *offset) {
+static void* ptr_from_offset(FSHandle *fs, size_t *offset) {
     return (void*)((long unsigned int)fs + (size_t)offset);
 }
 
@@ -146,7 +148,7 @@ static void set_inode_lasttimes(Inode *inode, int set_modified) {
 
 // Returns 1 if the given node is free, else returns 0.
 static int is_inode_free(Inode *inode) {
-    if (inode->offset_firstblk == (int*) -1)
+    if (inode->offset_firstblk == 0)
         return 1;
     return 0;
 }
@@ -159,7 +161,7 @@ static int is_memblock_free(MemHead *memhead) {
 }
 
 /* End Our Utility helpers ------------------------------------------------ */
-/* Begin Our FS helpers --------------------------------------------------- */
+/* Begin Our Filesystem helpers ------------------------------------------- */
 
 
 // TODO: Inode* resolve_path(FSHandle *fs, const char *path) {
@@ -184,76 +186,73 @@ static int set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
         return 0;
     }
 
-    // TODO: set_inode_lasttimes(inode, 1) -- set_inode works from get_filesys, but not from here
+    set_inode_lasttimes(inode, 1);
     inode->file_size_b = (size_t*) sz;
 
     return 1;
 }
 
-// Formats file system's memory space and initializes ptr fs.
-void init_filesys_mem(void *fsptr, size_t size, FSHandle *fs) {
-    if (size < MIN_FS_SZ_B) return; // Ensure adequate size given
-
-    size_t fs_size = size - FS_START_OFFSET;    // Space available to fs
-    void *segs_start = fsptr + FS_START_OFFSET; // Start of fs segments
-    void *root_dir_start = NULL;                // Mem block segment start addr
-    size_t rootdir_offset = -1;                 // Root dir offset from fsptr
-
-    memset(fsptr, 0, fs_size);                  // Format mem space w/zero-fill
-
-    // Determine num inodes & memblocks fs_size will allow (1:1 ratio)
-    int n_blocks = 0;
-    int n_inodes = 0;
-    while (n_blocks * DATAFIELD_SZ_B + n_inodes * ST_SZ_INODE < fs_size) {
-        n_blocks++;
-        n_inodes++;
-    }
-    
-    // Denote root dir and first free addresses abd ffsets
-    root_dir_start = segs_start + (ST_SZ_INODE * n_inodes);
-    rootdir_offset = root_dir_start - fsptr;
-
-    // debug
-    printf("    ** New memspace detected - formatting as new file system...\n");
-    printf("    Inodes                      : %d\n",n_inodes);
-    printf("    Memory Blocks               : %d\n",n_blocks);
-    printf("    Inodes segment start        : %lu\n", (long unsigned int)segs_start);
-    printf("    Mem blocks segment start    : %lu\n", (long unsigned int)root_dir_start);
-    printf("    Rootdir block offset        : %lu\n", (long unsigned int)rootdir_offset);
-
-    // Populate fs data members
-    fs->magic = MAGIC_NUM;
-    fs->size_b = fs_size;
-    fs->inode_seg = (Inode*) segs_start;
-    fs->mem_seg = (MemHead*) root_dir_start;
-
-    // Set up 0th inode as the root inode
-    strncpy(fs->inode_seg->fname, FS_ROOTPATH, str_len(FS_ROOTPATH));
-    set_inode_lasttimes(fs->inode_seg, 1);
-    fs->inode_seg->is_dir = (int*) 1;
-    fs->inode_seg->subdirs = 0;
-    fs->inode_seg->offset_firstblk = (int*) rootdir_offset;
-    
-    // Set up 0th memory block as the root directory
-    // TODO: Write root dir table data w/. and ..
-    set_filedata(fs, fs->inode_seg, "test\0", 5);
-}
-
 // Maps a filesystem of size fssize onto fsptr and returns a handle to it.
 static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
+    if (size < MIN_FS_SZ_B) return NULL; // Ensure adequate size given
+
     // Map file system structure onto the given memory space
     FSHandle *fs = (FSHandle*) fsptr;
 
-    // If the first few bytes aren't our magic number, the memory hasn't yet
-    // been initialized as a file system, so do it now.
-    if (fs->magic != MAGIC_NUM)
-        init_filesys_mem(fsptr, size, fs);
+    size_t fs_size = size - FS_START_OFFSET;    // Space available to fs
+    void *segs_start = fsptr + FS_START_OFFSET; // Start of fs segments
+    void *memblocks_seg = NULL;                 // Mem block segment start addr
+    int n_inodes = 0;                           // Num inodes fs contains
+    int n_blocks = 0;                           // Num memblocks fs contains
+
+    // Determine num inodes & memblocks that will fit in the given size
+    while (n_blocks * DATAFIELD_SZ_B + n_inodes * ST_SZ_INODE < fs_size) {
+        n_inodes++;
+        n_blocks += BLOCKS_TO_INODES;
+    }
+    
+    // Denote memblocks addr & offset
+    memblocks_seg = segs_start + (ST_SZ_INODE * n_inodes);
+    
+    // If first bytes aren't our magic number, format the mem space for the fs
+    if (fs->magic != MAGIC_NUM) {
+        printf("    ** NOTE: Virgin memspace was detected & formatted.\n"); // debug
+        
+        // Format mem space w/zero-fill
+        memset(fsptr, 0, fs_size);                  
+
+        // Populate fs data members
+        fs->magic = MAGIC_NUM;
+        fs->size_b = fs_size;
+        fs->num_inodes = n_inodes;
+        fs->num_memblocks = n_blocks;
+        fs->inode_seg = (Inode*) segs_start;
+        fs->mem_seg = (MemHead*) memblocks_seg;
+
+        // Set up 0th inode as the root inode
+        strncpy(fs->inode_seg->fname, FS_ROOTPATH, str_len(FS_ROOTPATH));
+        fs->inode_seg->is_dir = (int*) 1;
+        fs->inode_seg->subdirs = 0;
+        fs->inode_seg->offset_firstblk = (size_t*) (memblocks_seg - fsptr);
+        
+        // Set up 0th memory block as the root directory
+        set_filedata(fs, fs->inode_seg, "test\0", 5); // TODO: Write root dir table
+    } 
+
+    // Otherwise, just update the handle info
+    else {
+        fs->size_b = fs_size;
+        fs->num_inodes = n_inodes;
+        fs->num_memblocks = n_blocks;
+        fs->inode_seg = (Inode*) segs_start;
+        fs->mem_seg = (MemHead*) memblocks_seg;
+    }
 
     return fs;   
 }
 
 
-/* End Our FS helpers ----------------------------------------------------- */
+/* End Our Filesystem helpers --------------------------------------------- */
 /* Begin Our 13 implementations ------------------------------------------- */
 
 
@@ -297,14 +296,13 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
       fs_handle = get_filesys_handle(fsptr, fssize);
       if (!fs_handle) {
             *errnoptr = EFAULT;
-            return -1;  // Fail, bad fsptr or fssize given
+            return -1;  // Fail - bad fsptr or fssize given
       }    
 
-      // TODO: inode = path_resolve(fs_handle, path);
-      inode = fs_handle->inode_seg;
+      inode = fs_handle->inode_seg; // TODO: inode = path_resolve(fs_handle, path);
       if (!inode) {
             *errnoptr = ENOENT;
-            return -1;  // Fail, bad path given
+            return -1;  // Fail - bad path given
       }    
     
       //Reset the memory of the results container
@@ -622,7 +620,7 @@ int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
 
 // Print filesystem data structure sizes
 void print_struct_debug() {
-    printf("File system uses the following data structures:\n");
+    printf("File system's data structures:\n");
     printf("    FSHandle        : %lu bytes\n", ST_SZ_FSHANDLE);
     printf("    Inode           : %lu bytes\n", ST_SZ_INODE);
     printf("    MemHead         : %lu bytes\n", ST_SZ_MEMHEAD);
@@ -652,7 +650,7 @@ void print_inode_debug(Inode *inode) {
     printf("    subdirs             : %lu\n", (lui)inode->subdirs);
     printf("    file_size_b         : %lu\n", (lui)inode->file_size_b);
     // strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_acc->tv_sec));
-    // printf("    last_acc            : %s.%09ld\n", buff, inode->last_acc->tv_sec);
+    printf("    last_acc            : %s.%09ld\n", buff, inode->last_acc->tv_sec);
     // strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_mod->tv_sec));
     printf("    last_mod            : %s.%09ld\n", buff, inode->last_mod->tv_sec);
     printf("    offset_firstblk     : %lu\n", (lui)inode->offset_firstblk);     
@@ -662,8 +660,9 @@ void print_inode_debug(Inode *inode) {
 void print_fs_debug(FSHandle *fs) {
     printf("File system properties: \n");
     printf("    fs (fsptr)      : %lu\n", (lui)fs);
+    printf("    fs->num_inodes  : %lu\n", (lui)fs->num_inodes);
+    printf("    fs->num_memblks : %lu\n", (lui)fs->num_memblocks);
     printf("    fs->size_b      : %lu (%lu kb)\n", fs->size_b, bytes_to_kb(fs->size_b));
-    printf("    fs->magic       : %lu\n", (lui)fs->magic);
     printf("    fs->inode_seg   : %lu\n", (lui)fs->inode_seg);
     printf("    fs->mem_seg     : %lu\n", (lui)fs->mem_seg);
     // printf("Free space      : %lu bytes (%lu kb)\n", space_free(&fs), bytes_to_kb(space_free(&fs));
@@ -686,10 +685,10 @@ int main()
     // Note: The two vars above are used as args to the call immeidately below, 
     // Each of our 13 stubs will need a call exactly like this one to "recover"
     // the global filesystem.
-    printf("Setting up filesystem for the first time...\n");
+    printf("Getting filesys handle for the first time...\n");
     FSHandle *fs = get_filesys_handle(fsptr, fssize);
 
-    printf("\nSetup successful - ");
+    printf("\n    ");
     print_fs_debug(fs);
 
     printf("\nExamining root inode @ ");
@@ -698,15 +697,11 @@ int main()
     printf("\nExamining root dir @ ");
     print_memblock_debug(fs->mem_seg);
 
-
-    printf("\nExamining inode/memblock usage -");
-    Inode *inode1 = fs->inode_seg;
-    MemHead *mem1 = fs->mem_seg;
-    
+    printf("\nExamining inode & memblock usage -");
     printf("\nIs inode 0 free = %d\n", is_inode_free(fs->inode_seg));
+    printf("Is inode 1 free = %d\n", is_inode_free(fs->inode_seg + 1));
     printf("Is memblock 0 free = %d\n", is_memblock_free(fs->mem_seg));
-    printf("\nIs inode 1 free = %d\n", is_inode_free(fs->inode_seg));
-    printf("Is dir 1 free = %d\n", is_memblock_free(fs->mem_seg));
+    printf("Is memblock 1 free = %d\n", is_memblock_free(fs->mem_seg + 1));
 
 	// // Create a 8KB test file
 	// create_file(&fs->root, &fs->head, 8, FS_ROOTPATH, "testfile", 0);
