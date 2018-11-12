@@ -165,7 +165,8 @@ static int is_memblock_free(MemHead *memhead) {
 
 
 // TODO: Inode* resolve_path(FSHandle *fs, const char *path) {
-// TODO: void* get_file_data(FSHandle *fs, const char *path) {
+// TODO: char* get_file_data(FSHandle *fs, const char *path) {
+// TODO: char* get_memblock_data(MemHead *memhead) {
 
 // Sets the data field and updates size fields for file denoted by given inode.
 static int set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
@@ -176,7 +177,7 @@ static int set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     if (sz <= DATAFIELD_SZ_B) {
         strncpy(data_field, data, sz);
         memblock->data_size_b = (size_t*) sz;
-        memblock->offset_nextblk = NULL;         // Only single block used
+        memblock->offset_nextblk = 0;
     }
 
     // TODO: Else use multiple blocks, if available
@@ -698,11 +699,11 @@ int main()
     printf("\nExamining root dir @ ");
     print_memblock_debug(fs->mem_seg);
 
-    printf("\nExamining inode & memblock usage -");
-    printf("\nIs inode 0 free = %d\n", is_inode_free(fs->inode_seg));
-    printf("Is inode 1 free = %d\n", is_inode_free(fs->inode_seg + 1));
-    printf("Is memblock 0 free = %d\n", is_memblock_free(fs->mem_seg));
-    printf("Is memblock 1 free = %d\n", is_memblock_free(fs->mem_seg + 1));
+    printf("\nExamining inode & memblock usage -\n");
+    printf("    Is inode 0 free = %d\n", is_inode_free(fs->inode_seg));
+    printf("    Is inode 1 free = %d\n", is_inode_free(fs->inode_seg + 1));
+    printf("    Is memblock 0 free = %d\n", is_memblock_free(fs->mem_seg));
+    printf("    Is memblock 1 free = %d\n", is_memblock_free(fs->mem_seg + 1));
 
 	// Create a 8KB test file
 	// create_file(&fs->root, &fs->head, 8, FS_ROOTPATH, "testfile", 0);
