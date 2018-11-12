@@ -26,31 +26,24 @@
 #include "myfs_includes.h"
 
 
-/* Begin File System Documentatin -----------------------------------------
+/* Begin File System Documentati0n ---------------------------------------- /*
     
-    File system structure in memory is:
-     ___________________________________________________________________
+    + File system structure in memory is:
+     _ _ _ _ _ _ _ _ _______________________ ___________________________
     |   FSHandle    |       Inodes          |       Memory Blocks       | 
-    |_______________|_______________________|___________________________|
+    |_ _ _ _ _ _ _ _|_______________________|___________________________|
     ^               ^                       ^
-    fsptr           Inode Segment           Memory Blocks segment
+    fsptr           Inodes Segment          Memory Blocks segment
                     (0th is root inode)     (0th is root dir memory block)
 
-
-    Memory blocks look like:
-     _______________________________________
+    + Memory blocks look like:
+     ______________ ________________________
     |   MemHead    |         Data           |
     |______________|________________________|
 
 
-    The data field for a folder's memory block is layed out as:
-    ".:corresponding inode offset (from fsptr)\n
-
-
-/* End File System Documentatin ----------------------------------------- */
-
+/* End File System Documentation ------------------------------------------ */
 /* Begin Our Definitions -------------------------------------------------- */
-
 
 #define FS_ROOTPATH ("/\0")                 // File system's root path
 #define FS_BLOCK_SZ_KB (1)                  // Total kbs of each memory block
@@ -122,7 +115,7 @@ static int offset_from_ptr(FSHandle *fs, void *ptr) {
 }
 
 // Returns 1 iff fname is legal ascii chars and within max length, else 0.
-static int is_valid_filename(char *fname) {
+static int is_filename_valid(char *fname) {
     int len = 0;
     int ord = 0;
 
