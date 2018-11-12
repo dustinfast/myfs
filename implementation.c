@@ -179,7 +179,7 @@ static int set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
         memblock->offset_nextblk = NULL;         // Only single block used
     }
 
-    // Else use multiple blocks, if available
+    // TODO: Else use multiple blocks, if available
     else {
         int blocks_needed = sz / DATAFIELD_SZ_B + 1;
         printf("UNSUPORTED: need %d blocks for this operation.", blocks_needed);
@@ -236,7 +236,8 @@ static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
         fs->inode_seg->offset_firstblk = (size_t*) (memblocks_seg - fsptr);
         
         // Set up 0th memory block as the root directory
-        set_filedata(fs, fs->inode_seg, "test\0", 5); // TODO: Write root dir table
+        // TODO: Write root dir table
+        set_filedata(fs, fs->inode_seg, "hello world\0", 12);
     } 
 
     // Otherwise, just update the handle info
@@ -637,7 +638,7 @@ void print_memblock_debug(MemHead *memhead) {
     printf("Memory block at %lu:\n", (lui)memhead);
     printf("    data_size_b     : %lu\n", (lui)memhead->data_size_b);
     printf("    offset_nextblk  : %lu\n", (lui)memhead->offset_nextblk);
-    printf("    data            : TODO%s\n",  (char*)(memhead + DATAFIELD_SZ_B));
+    printf("    data            : %s\n",  (char*)(memhead + ST_SZ_MEMHEAD));
 }
 
 // Print inode stats
@@ -649,9 +650,9 @@ void print_inode_debug(Inode *inode) {
     printf("    is_dir              : %lu\n", (lui)inode->is_dir);
     printf("    subdirs             : %lu\n", (lui)inode->subdirs);
     printf("    file_size_b         : %lu\n", (lui)inode->file_size_b);
-    // strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_acc->tv_sec));
+    strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_acc->tv_sec));
     printf("    last_acc            : %s.%09ld\n", buff, inode->last_acc->tv_sec);
-    // strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_mod->tv_sec));
+    strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_mod->tv_sec));
     printf("    last_mod            : %s.%09ld\n", buff, inode->last_mod->tv_sec);
     printf("    offset_firstblk     : %lu\n", (lui)inode->offset_firstblk);     
     }
@@ -703,7 +704,7 @@ int main()
     printf("Is memblock 0 free = %d\n", is_memblock_free(fs->mem_seg));
     printf("Is memblock 1 free = %d\n", is_memblock_free(fs->mem_seg + 1));
 
-	// // Create a 8KB test file
+	// Create a 8KB test file
 	// create_file(&fs->root, &fs->head, 8, FS_ROOTPATH, "testfile", 0);
 
     // printf("\nGetting filesystem handle of existing fs...\n");
@@ -713,8 +714,6 @@ int main()
     // printf("Got handle successfully - ");
     // print_fs_debug(fs);
 
-
-    // TODO: Write fs contents to backup file
 
     printf("\nExiting...\n");
     free(fsptr);
