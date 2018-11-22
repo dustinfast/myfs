@@ -26,7 +26,7 @@
 #include "myfs_includes.h"
 
 
-/* Begin File System Documentati0n ---------------------------------------- /*
+/* Begin File System Documentation ---------------------------------------- /*
     
     + File system structure in memory is:
      _ _ _ _ _ _ _ _ _______________________ ___________________________
@@ -40,6 +40,8 @@
      ______________ ________________________
     |   MemHead    |         Data           |
     |______________|________________________|
+
+    # TODO: Add addtl docs to README.md
 
 
 /* End File System Documentation ------------------------------------------ */
@@ -166,7 +168,46 @@ static int is_memblock_free(MemHead *memhead) {
 
 // TODO: Inode* resolve_path(FSHandle *fs, const char *path) {
 // TODO: char* get_file_data(FSHandle *fs, const char *path) {
-// TODO: char* get_memblock_data(MemHead *memhead) {
+
+// Given FSHandle and MemHead ptrs, populates memory pointed to by buff to a 
+// a string representation of that memblock's data, plus the data fields of
+// any subsequent MemBlocks pointed to by memblock->offset_nextblk field. 
+// Note: If memhead is a ptr to the first block in a file, this function
+// populates buf with all the data for that file.
+/*  Accepts:
+        fs      (FSHandle)  : Ptr to a filesystem in memory
+        memhead (MemHead)   : Ptr to a MemHead containing desired data
+        buf     (void*)     : Ptr to a dynamically allocated array w/size = 1
+    Returns: 
+        size_t              : Denotes the size of the string ptd to by buf*/
+size_t get_memblock_data(FSHandle *fs, MemHead *memhead, char *buf) {
+    size_t result_sz = 0;
+    size_t to_write = -1;
+    size_t write_at = -1;
+
+    // Iterate each 'next' memblock until we get to one that pts no further
+    while (1) {
+        // Denote new requiured size of buf, based on current 
+        to_write = memhead->data_size_b;
+        write_at = result_szl
+        result_sz += memhead->data_size_b;
+         
+        // Resize buf to accomodate the new data
+        realloc(buf, sz);
+
+        // TODO: Write the memory onto the end of buf
+
+        // If on the last (or only) memblock of the sequence, stop iterating
+        if (memhead->offset_nextblk == 0)  // 0 = no next data field
+            break;
+        
+        // Else, start operating on the next data field
+        else
+            memblock = ptr_from_offset(fs, memhead->offset_nextblk);
+    }
+
+    return result_sz;  // Recall, the 
+}
 
 // Sets the data field and updates size fields for file denoted by given inode.
 static int set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
@@ -180,10 +221,11 @@ static int set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
         memblock->offset_nextblk = 0;
     }
 
-    // TODO: Else use multiple blocks, if available
+    // Else use multiple blocks, if available
     else {
         int blocks_needed = sz / DATAFIELD_SZ_B + 1;
         printf("UNSUPORTED: need %d blocks for this operation.", blocks_needed);
+        // TODO: IMPLEMENT
         return 0;
     }
 
@@ -201,7 +243,7 @@ static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
     FSHandle *fs = (FSHandle*) fsptr;
 
     size_t fs_size = size - FS_START_OFFSET;    // Space available to fs
-    void *segs_start = fsptr + FS_START_OFFSET; // Start of fs segments
+    void *segs_start = fsptr + FS_START_OFFSET; // Start of fs's segments
     void *memblocks_seg = NULL;                 // Mem block segment start addr
     int n_inodes = 0;                           // Num inodes fs contains
     int n_blocks = 0;                           // Num memblocks fs contains
@@ -705,7 +747,7 @@ int main()
     printf("    Is memblock 0 free = %d\n", is_memblock_free(fs->mem_seg));
     printf("    Is memblock 1 free = %d\n", is_memblock_free(fs->mem_seg + 1));
 
-	// Create a 8KB test file
+	// Create a 8KB test file by hand
 	// create_file(&fs->root, &fs->head, 8, FS_ROOTPATH, "testfile", 0);
 
     // printf("\nGetting filesystem handle of existing fs...\n");
