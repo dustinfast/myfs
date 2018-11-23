@@ -114,7 +114,7 @@ static void* ptr_from_offset(FSHandle *fs, size_t *offset) {
 }
 
 // Returns an int offset from the filesystem's start address for the given ptr.
-static int offset_from_ptr(FSHandle *fs, void *ptr) {
+static size_t offset_from_ptr(FSHandle *fs, void *ptr) {
     return ptr - (void*)fs;
 }
 
@@ -169,47 +169,51 @@ static int is_memblock_free(MemHead *memhead) {
 // TODO: Inode* resolve_path(FSHandle *fs, const char *path) {
 // TODO: char* get_file_data(FSHandle *fs, const char *path) {
 
-// Given FSHandle and MemHead ptrs, populates memory pointed to by buff to a 
-// a string representation of that memblock's data, plus the data fields of
-// any subsequent MemBlocks pointed to by memblock->offset_nextblk field. 
-// Note: If memhead is a ptr to the first block in a file, this function
-// populates buf with all the data for that file.
-/*  Accepts:
+/* -- get_memblock_data() -- */
+/* Given FSHandle and MemHead ptrs, populates the memory pointed to by buff
+   with a string representating that memblock's data, plus the data fields of
+   any subsequent MemBlocks pointed to by memblock->offset_nextblk field. 
+   Note: If memhead is a ptr to the first block in a file, this function
+   effectively populates buf with all the data for that file.
+    Accepts:
         fs      (FSHandle)  : Ptr to a filesystem in memory
         memhead (MemHead)   : Ptr to a MemHead containing desired data
         buf     (void*)     : Ptr to a dynamically allocated array w/size = 1
     Returns: 
-        size_t              : Denotes the size of the string ptd to by buf*/
+        size_t              : Denotes the size of the data at buf  */
 size_t get_memblock_data(FSHandle *fs, MemHead *memhead, char *buf) {
-    size_t result_sz = 0;
-    size_t to_write = -1;
-    size_t write_at = -1;
+    MemHead *memblock = (MemHead*) memhead;
+    size_t total_sz = 0;
+    size_t sz_to_write = -1;
 
     // Iterate each 'next' memblock until we get to one that pts no further
     while (1) {
         // Denote new requiured size of buf, based on current 
-        to_write = memhead->data_size_b;
-        write_at = result_szl
-        result_sz += memhead->data_size_b;
+        sz_to_write = (size_t)memblock->data_size_b;
+        total_sz += sz_to_write;
          
         // Resize buf to accomodate the new data
-        realloc(buf, sz);
+        buf = realloc(buf, total_sz);
+
+        // Get a ptr to the memblocks data field
+        char *memblocks_data_field = (char*) memblock + ST_SZ_MEMHEAD;
 
         // TODO: Write the memory onto the end of buf
-
+        
         // If on the last (or only) memblock of the sequence, stop iterating
-        if (memhead->offset_nextblk == 0)  // 0 = no next data field
+        if (memblock->offset_nextblk == 0)
             break;
         
-        // Else, start operating on the next data field
+        // Else, start operating on the next memblock in the sequence
         else
-            memblock = ptr_from_offset(fs, memhead->offset_nextblk);
+            memblock = (MemHead*) ptr_from_offset(fs, memblock->offset_nextblk);
     }
 
-    return result_sz;  // Recall, the 
+    return total_sz;
 }
 
-// Sets the data field and updates size fields for file denoted by given inode.
+// Sets the data field and updates size fields for the file denoted by inode.
+// Returns 1 on success, else 0.
 static int set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     MemHead *memblock = ptr_from_offset(fs, inode->offset_firstblk);
     void *data_field = memblock + ST_SZ_MEMHEAD;
@@ -224,7 +228,7 @@ static int set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     // Else use multiple blocks, if available
     else {
         int blocks_needed = sz / DATAFIELD_SZ_B + 1;
-        printf("UNSUPORTED: need %d blocks for this operation.", blocks_needed);
+        printf("NOT YET SUPORTED: need %d blocks for this operation.", blocks_needed);
         // TODO: IMPLEMENT
         return 0;
     }
@@ -693,10 +697,10 @@ void print_inode_debug(Inode *inode) {
     printf("    is_dir              : %lu\n", (lui)inode->is_dir);
     printf("    subdirs             : %lu\n", (lui)inode->subdirs);
     printf("    file_size_b         : %lu\n", (lui)inode->file_size_b);
-    strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_acc->tv_sec));
-    printf("    last_acc            : %s.%09ld\n", buff, inode->last_acc->tv_sec);
-    strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_mod->tv_sec));
-    printf("    last_mod            : %s.%09ld\n", buff, inode->last_mod->tv_sec);
+    // strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_acc->tv_sec));
+    // printf("    last_acc            : %s.%09ld\n", buff, inode->last_acc->tv_sec);
+    // strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_mod->tv_sec));
+    // printf("    last_mod            : %s.%09ld\n", buff, inode->last_mod->tv_sec);
     printf("    offset_firstblk     : %lu\n", (lui)inode->offset_firstblk);     
     }
 
@@ -747,16 +751,34 @@ int main()
     printf("    Is memblock 0 free = %d\n", is_memblock_free(fs->mem_seg));
     printf("    Is memblock 1 free = %d\n", is_memblock_free(fs->mem_seg + 1));
 
-	// Create a 8KB test file by hand
-	// create_file(&fs->root, &fs->head, 8, FS_ROOTPATH, "testfile", 0);
 
-    // printf("\nGetting filesystem handle of existing fs...\n");
-    // fs = NULL;
-    // fs = get_filesys_handle(fsptr, fssize);
+    /////////////////////////////////////////////////////////////////////////
+    // Test File - Create a test file with a single memblock worth of data
+    printf("\n\n---- Starting Test File -----\n");
+    MemHead *memblock1 = fs->mem_seg + 1;    // memblock 1, since memblock 0 is root
+    Inode *inode_file1 = fs->inode_seg + 1;  // inode 1, since inode 0 is root
 
-    // printf("Got handle successfully - ");
-    // print_fs_debug(fs);
+    strncpy(inode_file1->fname, "/testfile1\0", 11); // Set filename
+    inode_file1->offset_firstblk = (size_t*) offset_from_ptr(fs, (void*)memblock1);   // Set file's first (only) memblock
+    set_filedata(fs, inode_file1, "hello world 1\0", 14);  // Populate memblock data field
+    
+    // Prove files setup properly
+    printf("\nExamining file1 inode - ");
+    print_inode_debug(inode_file1);
+    printf("\nExamining file1 memblock - ");
+    print_memblock_debug(memblock1);
+    
+    // Get the data out of the memblock using get_memblock_data
+    char *buf = malloc(1);
+    size_t data_sz = get_memblock_data(fs, memblock1, buf);
 
+    printf("\nOutput from get_memblock_data:\n");
+    printf("Data: %s\n", buf);
+    printf("Size: %lu", data_sz);
+    free(buf);
+
+    // End Test File
+    /////////////////////////////////////////////////////////////////////////
 
     printf("\nExiting...\n");
     free(fsptr);
