@@ -169,23 +169,6 @@ static int is_memblock_free(MemHead *memhead) {
 // TODO: Inode* resolve_path(FSHandle *fs, const char *path) {
 // TODO: char* get_file_data(FSHandle *fs, const char *path) {
 
-
-/* -- write_to_buffer() -- */
-/* Given a buffer and a data field, appends the data to the buffer.*/
-void write_to_buffer(char* buffer, char* data){
-
-    if (buffer[0] == 0) // || !buffer count)
-    {
-        // Buffer is empty, don't concatenate data- just copy. 
-        strcpy(buffer, data);
-    }
-    else
-    {
-        // Add data to end of buffer.
-        strcat(buffer,("  %s", data));
-    }
-}
-
 /* -- get_memblock_data() -- */
 /* Given FSHandle and MemHead ptrs, populates the memory pointed to by buff
    with a string representating that memblock's data, plus the data fields of
