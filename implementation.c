@@ -48,7 +48,7 @@
 /* Begin Our Definitions -------------------------------------------------- */
 
 #define FS_ROOTPATH ("/")                   // File system's root path
-#define FS_BLOCK_SZ_KB (.025)                  // Total kbs of each memory block
+#define FS_BLOCK_SZ_KB (1) //.025                 // Total kbs of each memory block
 #define FNAME_MAXLEN (256)                  // Max length of any filename
 #define BLOCKS_TO_INODES (1)                // Num of mem blocks to each inode
 #define MAGIC_NUM (UINT32_C(0xdeadd0c5))    // Num for denoting block init
@@ -215,13 +215,13 @@ size_t get_memblock_data(FSHandle *fs, MemHead *memhead, char *buf) {
         // Cpy memblock's data into our buffer at an offset from what's
         // already been written, minus 1 (so we don't include the \0)
         void *buf_writeat = (void *) buf + old_sz;
-        printf("buf: %lu\n", (long unsigned int)buf);
-        printf("buf_writeat: %lu\n", (long unsigned int)buf_writeat);
-        printf("sz_to_write: %lu\n", sz_to_write);
-        printf("memblock data: %s\n", memblocks_data_field);
+        // printf("buf: %lu\n", (long unsigned int)buf);
+        // printf("buf_writeat: %lu\n", (long unsigned int)buf_writeat);
+        // printf("sz_to_write: %lu\n", sz_to_write);
+        // printf("memblock data: %s\n", memblocks_data_field);
         memcpy(buf_writeat, memblocks_data_field, sz_to_write);
         
-        printf("---- Data: '%s'\n\n", (char *)buf_writeat);
+        // printf("---- Data: '%s'\n\n", (char *)buf_writeat);
         
         // If on the last (or only) memblock of the sequence, stop iterating
         if (memblock->offset_nextblk == 0)
@@ -240,7 +240,11 @@ size_t get_memblock_data(FSHandle *fs, MemHead *memhead, char *buf) {
     return total_sz;
 }
 
-
+// Sets the file or directory name (of length sz) for the given inode.
+void set_inode_fname(FSHandle *fs, Inode *inode, char *fname, size_t sz)
+{
+    strncpy(inode->fname, fname, sz); 
+}
 
 // Sets the data field and updates size fields for the file denoted by inode.
 // Returns 1 on success, else 0.
@@ -269,9 +273,10 @@ static int set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
             printf("chars_per_mem_block: %d\n", chars_per_mem_block );
             int blocks_needed = sz / DATAFIELD_SZ_B + 1;
             printf("NOT YET SUPORTED: need %d blocks for this operation.\n", blocks_needed);
+            
             MemHead *memblock2 = fs->mem_seg + 2;
             memblock->offset_nextblk = (size_t*) offset_from_ptr(fs, memblock2);
-            memblock2->data_size_b = (int)DATAFIELD_SZ_B;
+            // memblock2->data_size_b = (int)DATAFIELD_SZ_B;
 
             // copy only what fits in the block
             strncpy(data_field, data, chars_per_mem_block);
@@ -797,7 +802,7 @@ int main()
     void *fsptr = malloc(fssize);
     
     // Associate the filesys with a handle.
-    // Note: The two vars above are used as args to the call immeidately below, 
+    // Note: The two vars above are used as args to the call immediately below, 
     // Each of our 13 stubs will need a call exactly like this one to "recover"
     // the global filesystem.
     printf("Getting filesys handle for the first time...\n");
@@ -818,45 +823,71 @@ int main()
     printf("    Is memblock 0 free = %d\n", is_memblock_free(fs->mem_seg));
     printf("    Is memblock 1 free = %d\n", is_memblock_free(fs->mem_seg + 1));
 
-
-
     /////////////////////////////////////////////////////////////////////////
-    // Begin Test File - 
+    // Begin Single memblock Test File - 
+    printf("\n\n---- Starting Test File 1 (single memory block) -----\n");
 
-    // Create a test file with a single memblock worth of data
-    printf("\n\n---- Starting Test File -----\n");
-    MemHead *memblock1 = fs->mem_seg + 1;    // File 1 memblock 1 (block 0 = root)
-    MemHead *memblock2 = fs->mem_seg + 2;
-    MemHead *memblock3 = fs->mem_seg + 3;
+    // File1's memory blocks
+    MemHead *memblock1 = fs->mem_seg + 1;   // memblock 1 (recall: block 0 = root)
 
-    Inode *inode_file1 = fs->inode_seg + 1;  // inode 1, since inode 0 is root
-    // --- second inode --- //
-    // Inode *inode_file2 = fs->inode_seg + 2;
-    // // --- third inode --- //
-    // Inode *inode_file3 = fs->inode_seg + 3;
-    // end 
-
-    strncpy(inode_file1->fname, "/testfile1\0", 11); // Set filename
+    // Hack together File1's I-node
+    Inode *inode_file1 = fs->inode_seg + 1;  // (recall: inode 0 is root)
+    set_inode_fname(fs, inode_file1, "/file1\0", 6);
     inode_file1->offset_firstblk = (size_t*) offset_from_ptr(fs, (void*)memblock1);   // Set file's first (only) memblock
+    set_filedata(fs, inode_file1, "hello from file 1\0", 18);
 
-    // Populate memblock data field
-    set_filedata(fs, inode_file1, "hello world 1\0", 14);
-    char* p1 = (char*)(memblock2 + ST_SZ_MEMHEAD); 
-    memcpy(p1, "hello world 2\0", 14);
-    p1 = (char*)(memblock3 + ST_SZ_MEMHEAD); 
-    memcpy(p1, "hello world 3\0", 14);
-    
-    // Set test file's "list of memblocks"
-    memblock1->offset_nextblk = (size_t *) offset_from_ptr(fs, memblock2);
-    memblock2->offset_nextblk = (size_t *) offset_from_ptr(fs, memblock3);
-
-    // Denote file data lengths (note: memblock1's was set via set_file_data())
-    memblock2->data_size_b = 14;
-    memblock3->data_size_b = 14;
-    
-    // Prove files setup properly
+    // Display file1 inode properties to verify correctness
     printf("\nExamining file1 inode - ");
     print_inode_debug(inode_file1);
+
+
+    printf("\nExamining file1 data:\n");
+    char *buf = malloc(1);
+    size_t data_sz = get_memblock_data(fs, memblock1, buf);
+    printf("    Data: %s\n", buf);
+    printf("    Size: %lu\n", data_sz);
+    free(buf);
+
+    /////////////////////////////////////////////////////////////////////////
+    // Begin Multi-memblock Test File -
+    printf("\n\n---- Starting Test File 2 (triple memory block) -----\n");
+
+    // File2's memory blocks
+    MemHead *memblock2 = fs->mem_seg + 2;   // memblock 2 (recall: block 1 = file1)
+    MemHead *memblock3 = fs->mem_seg + 3;   // memblock 3
+    MemHead *memblock4 = fs->mem_seg + 4;   // memblock 4
+
+    // Hack together File2's I-node
+    Inode *inode_file2 = fs->inode_seg + 2;  // (recall: inode 1 is file 1)
+    set_inode_fname(fs, inode_file2, "/file2\0", 6);
+    inode_file2->offset_firstblk = (size_t*) offset_from_ptr(fs, (void*)memblock2);   // Set file's first memblock
+    set_filedata(fs, inode_file2, "hello world 1\0", 14);
+
+    // Populate memblock data field's
+    // TODO: Build an element that is 2.5 times the size of the allowed block
+    char* p1 = (char*)(memblock3 + ST_SZ_MEMHEAD); 
+    memcpy(p1, "hello world 2\0", 14);
+    p1 = (char*)(memblock4 + ST_SZ_MEMHEAD); 
+    memcpy(p1, "hello world 3\0", 14);
+
+    memblock2->offset_nextblk = (size_t *) offset_from_ptr(fs, memblock3);
+    memblock3->offset_nextblk = (size_t *) offset_from_ptr(fs, memblock4);
+
+    memblock2->data_size_b = (size_t*)14;
+    memblock3->data_size_b = (size_t*)14;
+
+    inode_file2->file_size_b = (size_t*)42;
+
+    // Display file2 properties to verify correctness
+    printf("\nExamining file2 inode - ");
+    print_inode_debug(inode_file2);
+
+    printf("\nExamining file2 data:\n");
+    buf = malloc(1);
+    data_sz = get_memblock_data(fs, memblock2, buf);
+    printf("    Data: %s\n", buf);
+    printf("    Size: %lu\n", data_sz);
+    free(buf);
     
     // printf("\nExamining file1 memblock - ");
     // print_memblock_debug(memblock1);
@@ -864,19 +895,6 @@ int main()
     // print_memblock_debug(memblock2);
     // printf("\nExamining file3 memblock - ");
     // print_memblock_debug(memblock3);
-    
-    // Get the data out of the memblock using get_memblock_data
-    char *buf = malloc(1);
-    size_t data_sz = get_memblock_data(fs, memblock1, buf);
-
-    printf("\nOutput from get_memblock_data:\n");
-    printf("    Data: %s\n", buf);
-    printf("    Size: %lu\n", data_sz);
-    free(buf);
-    printf("\nBuffer successfully freed\n");
-
-    // End Test File
-    /////////////////////////////////////////////////////////////////////////
 
     printf("\nExiting...\n");
     free(fsptr);
