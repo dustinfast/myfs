@@ -184,21 +184,44 @@ static int is_memblock_free(MemHead *memhead) {
 size_t get_memblock_data(FSHandle *fs, MemHead *memhead, char *buf) {
     MemHead *memblock = (MemHead*) memhead;
     size_t total_sz = 0;
+    size_t old_sz = 0;
     size_t sz_to_write = -1;
 
     // Iterate each 'next' memblock until we get to one that pts no further
     while (1) {
         // Denote new requiured size of buf, based on current 
+        old_sz = total_sz;
         sz_to_write = (size_t)memblock->data_size_b;
         total_sz += sz_to_write;
+
+        if (old_sz > 0) {
+            old_sz -= 1;
+            total_sz -= 1;
+        }
          
         // Resize buf to accomodate the new data
         buf = realloc(buf, total_sz);
 
-        // Get a ptr to the memblocks data field
-        char *memblocks_data_field = (char*) memblock + ST_SZ_MEMHEAD;
 
-        // TODO: Write the memory onto the end of buf
+        // Ensure realloc was successful
+        if (!buf) {
+            printf("ERROR: Failed to realloc.");
+            return 0;
+        }
+
+        // Get a ptr to the memblocks data field
+        char *memblocks_data_field = (char*)(memblock + ST_SZ_MEMHEAD);
+
+        // Cpy memblock's data into our buffer at an offset from what's
+        // already been written, minus 1 (so we don't include the \0)
+        void *buf_writeat = (void *) buf + old_sz;
+        printf("buf: %lu\n", buf);
+        printf("buf_writeat: %lu\n", buf_writeat);
+        printf("sz_to_write: %lu\n", sz_to_write);
+        printf("memblock data: %s\n", memblocks_data_field);
+        memcpy(buf_writeat, memblocks_data_field, sz_to_write);
+        
+        printf("---- Data: '%s'\n\n", buf_writeat);
         
         // If on the last (or only) memblock of the sequence, stop iterating
         if (memblock->offset_nextblk == 0)
@@ -206,11 +229,18 @@ size_t get_memblock_data(FSHandle *fs, MemHead *memhead, char *buf) {
         
         // Else, start operating on the next memblock in the sequence
         else
+
+        {
+            // printf("\nFOUND NEXT BLOCK: %lu\n", 
+            //     ptr_from_offset(fs, memblock->offset_nextblk));
             memblock = (MemHead*) ptr_from_offset(fs, memblock->offset_nextblk);
+        }
     }
 
     return total_sz;
 }
+
+
 
 // Sets the data field and updates size fields for the file denoted by inode.
 // Returns 1 on success, else 0.
@@ -752,30 +782,60 @@ int main()
     printf("    Is memblock 1 free = %d\n", is_memblock_free(fs->mem_seg + 1));
 
 
+
     /////////////////////////////////////////////////////////////////////////
     // Test File - Create a test file with a single memblock worth of data
     printf("\n\n---- Starting Test File -----\n");
     MemHead *memblock1 = fs->mem_seg + 1;    // memblock 1, since memblock 0 is root
+    // --- try to get a second memblock --- //
+    MemHead *memblock2 = fs->mem_seg + 2;
+    // --- try to get a third memblock --- //
+    MemHead *memblock3 = fs->mem_seg + 3;
+    //end 
+    // memblock1->offset_nextblk = (size_t*) offset_from_ptr(fs, (void*)memblock2); 
+
     Inode *inode_file1 = fs->inode_seg + 1;  // inode 1, since inode 0 is root
+    // --- second inode --- //
+    // Inode *inode_file2 = fs->inode_seg + 2;
+    // // --- third inode --- //
+    // Inode *inode_file3 = fs->inode_seg + 3;
+    // end 
 
     strncpy(inode_file1->fname, "/testfile1\0", 11); // Set filename
     inode_file1->offset_firstblk = (size_t*) offset_from_ptr(fs, (void*)memblock1);   // Set file's first (only) memblock
+
     set_filedata(fs, inode_file1, "hello world 1\0", 14);  // Populate memblock data field
+    char* p1 = (char*)(memblock2 + ST_SZ_MEMHEAD); 
+    memcpy(p1, "hello world 2\0", 14);
+    p1 = (char*)(memblock3 + ST_SZ_MEMHEAD); 
+    memcpy(p1, "hello world 3\0", 14);
+    
+    
+    memblock1->offset_nextblk = (size_t *) offset_from_ptr(fs, memblock2);
+    memblock2->offset_nextblk = (size_t *) offset_from_ptr(fs, memblock3);
+    memblock2->data_size_b = 14;
+    memblock3->data_size_b = 14;
     
     // Prove files setup properly
     printf("\nExamining file1 inode - ");
     print_inode_debug(inode_file1);
+    
     printf("\nExamining file1 memblock - ");
     print_memblock_debug(memblock1);
+    printf("\nExamining file2 memblock - ");
+    print_memblock_debug(memblock2);
+    printf("\nExamining file3 memblock - ");
+    print_memblock_debug(memblock3);
     
     // Get the data out of the memblock using get_memblock_data
     char *buf = malloc(1);
     size_t data_sz = get_memblock_data(fs, memblock1, buf);
 
     printf("\nOutput from get_memblock_data:\n");
-    printf("Data: %s\n", buf);
-    printf("Size: %lu", data_sz);
+    printf("    Data: %s\n", buf);
+    printf("    Size: %lu\n", data_sz);
     free(buf);
+    printf("\nBuffer successfully freed\n");
 
     // End Test File
     /////////////////////////////////////////////////////////////////////////
