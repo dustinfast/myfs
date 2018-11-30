@@ -48,7 +48,7 @@
 /* Begin Our Definitions -------------------------------------------------- */
 
 #define FS_ROOTPATH ("/")                   // File system's root path
-#define FS_BLOCK_SZ_KB (1)                  // Total kbs of each memory block
+#define FS_BLOCK_SZ_KB (.025)                  // Total kbs of each memory block
 #define FNAME_MAXLEN (256)                  // Max length of any filename
 #define BLOCKS_TO_INODES (1)                // Num of mem blocks to each inode
 #define MAGIC_NUM (UINT32_C(0xdeadd0c5))    // Num for denoting block init
@@ -257,9 +257,46 @@ static int set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
 
     // Else use multiple blocks, if available
     else {
-        int blocks_needed = sz / DATAFIELD_SZ_B + 1;
-        printf("NOT YET SUPORTED: need %d blocks for this operation.", blocks_needed);
-        // TODO: IMPLEMENT
+
+        //size_t sz_to_write = -1;
+        //size_t sz_to_write = (size_t)memblock->data_size_b;
+       
+        // keep adding to blocks until we have everything in memblocks
+        while(sz >= DATAFIELD_SZ_B)
+        {
+            // find out how much will fit into one block
+            int chars_per_mem_block = sz - DATAFIELD_SZ_B;
+            printf("chars_per_mem_block: %d\n", chars_per_mem_block );
+            int blocks_needed = sz / DATAFIELD_SZ_B + 1;
+            printf("NOT YET SUPORTED: need %d blocks for this operation.\n", blocks_needed);
+            MemHead *memblock2 = fs->mem_seg + 2;
+            memblock->offset_nextblk = (size_t*) offset_from_ptr(fs, memblock2);
+            memblock2->data_size_b = (int)DATAFIELD_SZ_B;
+
+            // copy only what fits in the block
+            strncpy(data_field, data, chars_per_mem_block);
+            printf("data: %s\n", data);
+            printf("-----------TRUNCATED STRING: %s\n", data_field );
+
+            // TODO: use memcpy?
+            // put the truncated data into memblock?
+
+            if(! memblock2)
+                printf("----NO MEMBLOCK CREATED\n");
+            else
+                printf("-----MEMBLOCKCREATED\n");
+
+            //memblock->offset_nextblk = (size_t *) offset_from_ptr(fs, memblock2);
+
+
+
+            //printf("SIZE TO WRITE: %zd\n", sz_to_write );
+            //printf("sz: %zd\n", sz);
+            //printf("DATAFIELD_SZ_B: %s\n", DATAFIELD_SZ_B);
+
+            // decrement the old size so that next iteration 
+            sz = sz - DATAFIELD_SZ_B;
+      }
         return 0;
     }
 
@@ -820,12 +857,12 @@ int main()
     printf("\nExamining file1 inode - ");
     print_inode_debug(inode_file1);
     
-    printf("\nExamining file1 memblock - ");
-    print_memblock_debug(memblock1);
-    printf("\nExamining file2 memblock - ");
-    print_memblock_debug(memblock2);
-    printf("\nExamining file3 memblock - ");
-    print_memblock_debug(memblock3);
+    // printf("\nExamining file1 memblock - ");
+    // print_memblock_debug(memblock1);
+    // printf("\nExamining file2 memblock - ");
+    // print_memblock_debug(memblock2);
+    // printf("\nExamining file3 memblock - ");
+    // print_memblock_debug(memblock3);
     
     // Get the data out of the memblock using get_memblock_data
     char *buf = malloc(1);
