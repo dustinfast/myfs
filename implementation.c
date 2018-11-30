@@ -294,47 +294,12 @@ static int inode_set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz)
 
     // Else use multiple blocks, if available
     else {
-
-        //size_t sz_to_write = -1;
-        //size_t sz_to_write = (size_t)memblock->data_size_b;
-       
-        // keep adding to blocks until we have everything in memblocks
-        while(sz >= DATAFIELD_SZ_B)
-        {
-            // find out how much will fit into one block
-            int chars_per_mem_block = sz - DATAFIELD_SZ_B;
-            printf("chars_per_mem_block: %d\n", chars_per_mem_block );
-            int blocks_needed = sz / DATAFIELD_SZ_B + 1;
-            printf("NOT YET SUPORTED: need %d blocks for this operation.\n", blocks_needed);
-            
-            MemHead *memblock2 = fs->mem_seg + 2;
-            memblock->offset_nextblk = (size_t*) offset_from_ptr(fs, memblock2);
-            // memblock2->data_size_b = (int)DATAFIELD_SZ_B;
-
-            // copy only what fits in the block
-            strncpy(data_field, data, chars_per_mem_block);
-            printf("data: %s\n", data);
-            printf("-----------TRUNCATED STRING: %s\n",(char*) data_field );
-
-            // TODO: use memcpy?
-            // put the truncated data into memblock?
-
-            if(! memblock2)
-                printf("----NO MEMBLOCK CREATED\n");
-            else
-                printf("-----MEMBLOCKCREATED\n");
-
-            //memblock->offset_nextblk = (size_t *) offset_from_ptr(fs, memblock2);
-
-
-
-            //printf("SIZE TO WRITE: %zd\n", sz_to_write );
-            //printf("sz: %zd\n", sz);
-            //printf("DATAFIELD_SZ_B: %s\n", DATAFIELD_SZ_B);
-
-            // decrement the old size so that next iteration 
-            sz = sz - DATAFIELD_SZ_B;
-      }
+        // find out how much will fit into one block
+        int chars_per_mem_block = sz - DATAFIELD_SZ_B;
+        printf("chars_per_mem_block: %d\n", chars_per_mem_block );
+        int blocks_needed = sz / DATAFIELD_SZ_B + 1;
+        printf("NOT YET SUPORTED: need %d blocks for this operation.\n", blocks_needed);
+        
         return 0;
     }
 
@@ -888,47 +853,40 @@ int main()
     // Begin Multi-memblock Test File -
     printf("\n\n---- Starting Test File 2 (triple memory block) -----\n");
 
-    // File2's inode and memory blocks
-    MemHead *memblock2 = memblock_firstfree(fs);
-
     // Setup File2's I-node
     Inode *inode_file2 = inode_firstfree(fs);
     inode_set_fname(fs, inode_file2, "/file2\0", 7);
     inode_file2->offset_firstblk = (size_t*)offset_from_ptr(fs, (void*)memblock_firstfree(fs));   // Set file's first memblock
-    inode_set_filedata(fs, inode_file2, "hello world a\0", 14);
 
-    // // Populate memblock data field's
-    // // TODO: Build an element that is 2.5 times the size of the allowed block
-    // memcpy(datafield_from_memblock(fs, memblock3), "hello world 2\0", 14);
-    // memcpy(datafield_from_memblock(fs, memblock4), "hello world 3\0", 14);
+    // Build a string of a's twice the size of a data field
+    size_t num_chars = DATAFIELD_SZ_B * 2;
+    char *oversized_chars = malloc(num_chars);
+    for (size_t i = 0; i < num_chars; i++) {
+        char *c = oversized_chars + i;
+        *c = 'a';
+    }
+    char *d = (oversized_chars + num_chars - 1);
+        *d = '\0';
 
-    // memblock2->offset_nextblk = (size_t *)offset_from_ptr(fs, memblock3);
-    // memblock3->offset_nextblk = (size_t *)offset_from_ptr(fs, memblock4);
+    // Populate the file with data from oversized element
+    // inode_set_filedata(fs, inode_file2, oversized_chars, num_chars);
+    inode_set_filedata(fs, inode_file2, "test\0", 5);
 
-    // memblock3->data_size_b = (size_t*)14;
-    // memblock4->data_size_b = (size_t*)14;
-
-    // inode_file2->file_size_b = (size_t*)42;
-
-    // // Display file2 properties to verify correctness
+    // Display file2 properties to verify correctness
     printf("\nExamining file2 inode - ");
     print_inode_debug(inode_file2);
     
     printf("\nExamining file1 memblock 1 - ");
     print_memblock_debug(fs, memblock1);
     printf("\nExamining file2 memblock 1 - ");
-    print_memblock_debug(fs, memblock2);
-    // printf("\nExamining file2 memblock 2 - ");
-    // print_memblock_debug(fs, memblock3);
-    // printf("\nExamining file2 memblock 3 - ");
-    // print_memblock_debug(fs, memblock4);
+    print_memblock_debug(fs, ptr_from_offset(fs, inode_file2->offset_firstblk));
 
-    printf("\nExamining file2 data:\n");
-    char *buf1 = malloc(1);
-    data_sz = memblock_getdata(fs, memblock2, buf1);
-    printf("    Data: %s\n", buf1);
-    printf("    Size: %lu\n", data_sz);
-    free(buf1);
+    // printf("\nExamining file2 data:\n");
+    // char *buf1 = malloc(1);
+    // data_sz = memblock_getdata(fs, ptr_from_offset(fs, inode_file2->offset_firstblk), buf1);
+    // printf("    Data: %s\n", buf1);
+    // printf("    Size: %lu\n", data_sz);
+    // free(buf1);
 
     // printf("\nExamining file1 data:\n");
     // char *buf2 = malloc(1);
