@@ -215,13 +215,13 @@ size_t get_memblock_data(FSHandle *fs, MemHead *memhead, char *buf) {
         // Cpy memblock's data into our buffer at an offset from what's
         // already been written, minus 1 (so we don't include the \0)
         void *buf_writeat = (void *) buf + old_sz;
-        printf("buf: %lu\n", buf);
-        printf("buf_writeat: %lu\n", buf_writeat);
+        printf("buf: %lu\n", (long unsigned int)buf);
+        printf("buf_writeat: %lu\n", (long unsigned int)buf_writeat);
         printf("sz_to_write: %lu\n", sz_to_write);
         printf("memblock data: %s\n", memblocks_data_field);
         memcpy(buf_writeat, memblocks_data_field, sz_to_write);
         
-        printf("---- Data: '%s'\n\n", buf_writeat);
+        printf("---- Data: '%s'\n\n", (char *)buf_writeat);
         
         // If on the last (or only) memblock of the sequence, stop iterating
         if (memblock->offset_nextblk == 0)
@@ -276,7 +276,7 @@ static int set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
             // copy only what fits in the block
             strncpy(data_field, data, chars_per_mem_block);
             printf("data: %s\n", data);
-            printf("-----------TRUNCATED STRING: %s\n", data_field );
+            printf("-----------TRUNCATED STRING: %s\n",(char*) data_field );
 
             // TODO: use memcpy?
             // put the truncated data into memblock?
@@ -821,15 +821,13 @@ int main()
 
 
     /////////////////////////////////////////////////////////////////////////
-    // Test File - Create a test file with a single memblock worth of data
+    // Begin Test File - 
+
+    // Create a test file with a single memblock worth of data
     printf("\n\n---- Starting Test File -----\n");
-    MemHead *memblock1 = fs->mem_seg + 1;    // memblock 1, since memblock 0 is root
-    // --- try to get a second memblock --- //
+    MemHead *memblock1 = fs->mem_seg + 1;    // File 1 memblock 1 (block 0 = root)
     MemHead *memblock2 = fs->mem_seg + 2;
-    // --- try to get a third memblock --- //
     MemHead *memblock3 = fs->mem_seg + 3;
-    //end 
-    // memblock1->offset_nextblk = (size_t*) offset_from_ptr(fs, (void*)memblock2); 
 
     Inode *inode_file1 = fs->inode_seg + 1;  // inode 1, since inode 0 is root
     // --- second inode --- //
@@ -841,15 +839,18 @@ int main()
     strncpy(inode_file1->fname, "/testfile1\0", 11); // Set filename
     inode_file1->offset_firstblk = (size_t*) offset_from_ptr(fs, (void*)memblock1);   // Set file's first (only) memblock
 
-    set_filedata(fs, inode_file1, "hello world 1\0", 14);  // Populate memblock data field
+    // Populate memblock data field
+    set_filedata(fs, inode_file1, "hello world 1\0", 14);
     char* p1 = (char*)(memblock2 + ST_SZ_MEMHEAD); 
     memcpy(p1, "hello world 2\0", 14);
     p1 = (char*)(memblock3 + ST_SZ_MEMHEAD); 
     memcpy(p1, "hello world 3\0", 14);
     
-    
+    // Set test file's "list of memblocks"
     memblock1->offset_nextblk = (size_t *) offset_from_ptr(fs, memblock2);
     memblock2->offset_nextblk = (size_t *) offset_from_ptr(fs, memblock3);
+
+    // Denote file data lengths (note: memblock1's was set via set_file_data())
     memblock2->data_size_b = 14;
     memblock3->data_size_b = 14;
     
