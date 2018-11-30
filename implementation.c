@@ -43,6 +43,9 @@
 
     # TODO: Add addtl docs to README.md
 
+    Design Decisions:
+        Assumes single process access.
+
 
 /* End File System Documentation ------------------------------------------ */
 /* Begin Our Definitions -------------------------------------------------- */
@@ -119,7 +122,7 @@ static size_t offset_from_ptr(FSHandle *fs, void *ptr) {
 }
 
 // Returns a ptr to a memory blocks data field.
-static void* datafield_from_memblock(FSHandle *fs, MemHead *memblock){
+static void* memblock_datafield(FSHandle *fs, MemHead *memblock){
     return (void*)(memblock + ST_SZ_MEMHEAD);
 }
 
@@ -161,7 +164,7 @@ static int inode_isfree(Inode *inode) {
 }
 
 // Returns the first free inode in the given filesystem
-static Inode* inode_firstfree(FSHandle *fs) {
+static Inode* inode_nextfree(FSHandle *fs) {
     Inode *inode = fs->inode_seg;
     size_t num_inodes = fs->num_inodes;
 
@@ -192,7 +195,7 @@ static int memblock_isfree(MemHead *memhead) {
 }
 
 // Returns the first free memblock in the given filesystem
-static MemHead* memblock_firstfree(FSHandle *fs) {
+static MemHead* memblock_nextfree(FSHandle *fs) {
     MemHead *memblock = fs->mem_seg;
     size_t num_memblocks = fs->num_memblocks;
 
@@ -201,7 +204,6 @@ static MemHead* memblock_firstfree(FSHandle *fs) {
         if (memblock_isfree(memblock))
             return memblock;
 
-        // memblock++; // ptr arithmetic
         memblock = memblock + (sizeof(MEMBLOCK_SZ_B) * sizeof(void*));
     }
 
@@ -224,7 +226,7 @@ size_t memblock_getdata(FSHandle *fs, MemHead *memhead, char *buf) {
     MemHead *memblock = (MemHead*) memhead;
     size_t total_sz = 0;
     size_t old_sz = 0;
-    size_t sz_to_write = -1;
+    size_t sz_to_write = 0;
 
     // Iterate each 'next' memblock until we get to one that pts no further
     while (1) {
@@ -233,10 +235,10 @@ size_t memblock_getdata(FSHandle *fs, MemHead *memhead, char *buf) {
         sz_to_write = (size_t)memblock->data_size_b;
         total_sz += sz_to_write;
 
-        if (old_sz > 0) {
-            old_sz -= 1;
-            total_sz -= 1;
-        }
+        // if (old_sz > 0) {
+        //     old_sz -= 1;
+        //     total_sz -= 1;
+        // }
          
         // Resize buf to accomodate the new data
         buf = realloc(buf, total_sz);
@@ -246,18 +248,18 @@ size_t memblock_getdata(FSHandle *fs, MemHead *memhead, char *buf) {
         }
 
         // Get a ptr to the memblocks data field
-        char *memblocks_data_field = (char*)(memblock + ST_SZ_MEMHEAD);
+        char *memblocks_data_field = (char *)(memblock + ST_SZ_MEMHEAD);
 
         // Cpy memblock's data into our buffer at an offset from what's
         // already been written, minus 1 (so we don't include the \0)
-        void *buf_writeat = (void *) buf + old_sz;
-        // printf("buf: %lu\n", (long unsigned int)buf);
-        // printf("buf_writeat: %lu\n", (long unsigned int)buf_writeat);
-        // printf("sz_to_write: %lu\n", sz_to_write);
+        void *buf_writeat = (void *)buf + old_sz;
+        printf("buf: %lu\n", (long unsigned int)buf);
+        printf("buf_writeat: %lu\n", (long unsigned int)buf_writeat);
+        printf("sz_to_write: %lu\n", sz_to_write);
         // printf("memblock data: %s\n", memblocks_data_field);
         memcpy(buf_writeat, memblocks_data_field, sz_to_write);
         
-        // printf("---- Data: '%s'\n\n", (char *)buf_writeat);
+        printf("Memblock Data: '%s'\n\n", (char *)buf_writeat);
         
         // If on the last (or only) memblock of the sequence, stop iterating
         if (memblock->offset_nextblk == 0)
@@ -265,9 +267,7 @@ size_t memblock_getdata(FSHandle *fs, MemHead *memhead, char *buf) {
         
         // Else, start operating on the next memblock in the sequence
         else
-        {
             memblock = (MemHead*) ptr_from_offset(fs, memblock->offset_nextblk);
-        }
     }
 
     return total_sz;
@@ -280,8 +280,10 @@ void inode_set_fname(FSHandle *fs, Inode *inode, char *fname, size_t sz)
 }
 
 // Sets the data field and updates size fields for the file denoted by inode.
-// Returns 1 on success, else 0.
-static int inode_set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
+// Also sets up the linked list of memory blocks for the file, as needed.
+// Returns 1 on success, else 0. A 0 likely denotes a full file system.
+// TODO: Currently assumes inode already has offset_firstblk set -> fix this!
+static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     MemHead *memblock = ptr_from_offset(fs, inode->offset_firstblk);
     void *data_field = memblock + ST_SZ_MEMHEAD;
 
@@ -294,13 +296,51 @@ static int inode_set_filedata(FSHandle *fs, Inode *inode, char *data, size_t sz)
 
     // Else use multiple blocks, if available
     else {
-        // find out how much will fit into one block
-        int chars_per_mem_block = sz - DATAFIELD_SZ_B;
-        printf("chars_per_mem_block: %d\n", chars_per_mem_block );
-        int blocks_needed = sz / DATAFIELD_SZ_B + 1;
-        printf("NOT YET SUPORTED: need %d blocks for this operation.\n", blocks_needed);
+        // Determine num blocks needed
+        size_t num_bytes = sz;
+        size_t memblock_bytes = num_bytes - DATAFIELD_SZ_B;
+        size_t blocks_needed = num_bytes / DATAFIELD_SZ_B;
         
-        return 0;
+        // Debug
+        printf("NOT YET SUPORTED:\n");
+        printf("memblock_byes: %lu\n", memblock_bytes);
+        printf("Need %lu blocks for this operation ", blocks_needed);
+        printf("of %lu bytes\n", num_bytes);
+
+        // Populate the memory blocks with the data
+        char *data_idx = data;
+        MemHead *prev_block = NULL;
+        size_t write_bytes = 0;
+        
+        while (num_bytes) {
+            // Determine num bytes to write this iteration
+            if (num_bytes > memblock_bytes)
+                write_bytes = memblock_bytes;   // More blocks needed
+            else
+                write_bytes = num_bytes;        // On last block needed
+
+            // Denote ptr to write addr
+            char *ptr_writeto = memblock_datafield(fs, memblock);  // Testing
+
+            // write the bytes to the data field
+            strncpy(ptr_writeto, data_idx, write_bytes);
+            memblock->data_size_b = (size_t*)write_bytes;
+
+            // Advance data index by the size just written
+            data_idx += write_bytes;
+
+            // printf("%lu bytes left\n", data_idx);
+
+            // Update next block offsets as needed
+            if (prev_block) 
+                prev_block->offset_nextblk = (size_t*)offset_from_ptr(fs, (void*)memblock);
+            prev_block = memblock;
+            memblock->offset_nextblk = 0;
+        
+            // Set up the next iteration
+            num_bytes -= write_bytes;         // Adjust num bytes to write
+            memblock = memblock_nextfree(fs); // Adavance to next free memblock
+        }
     }
 
     inode_set_lasttime(inode, 1);
@@ -333,7 +373,7 @@ static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
     
     // If first bytes aren't our magic number, format the mem space for the fs
     if (fs->magic != MAGIC_NUM) {
-        printf("    ** NOTE: Virgin memspace was detected & formatted.\n"); // debug
+        // printf("    ** NOTE: Virgin memspace was detected & formatted.\n"); // debug
         
         // Format mem space w/zero-fill
         memset(fsptr, 0, fs_size);                  
@@ -354,7 +394,7 @@ static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
         
         // Set up 0th memory block as the root directory
         // TODO: Write root dir table
-        inode_set_filedata(fs, fs->inode_seg, "hello world\0", 12);
+        inode_setdata(fs, fs->inode_seg, "hello world\0", 12);
     } 
 
     // Otherwise, just update the handle info
@@ -385,7 +425,7 @@ static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
       gid         : Group ID of file/dir owner
       path        : Path of the file/dir in question
       stbuf       : Results container
-   
+
    Returns:
       -1  (w/error in *errnoptr) iff path not a valid file or directory. 
       Else returns 0 with file/dir info copied to stbuf as -
@@ -827,13 +867,13 @@ int main()
     printf("\n\n---- Starting Test File 1 (single memory block) -----\n");
 
     // File1's memory block
-    MemHead *memblock1 = memblock_firstfree(fs);
+    MemHead *memblock1 = memblock_nextfree(fs);
     
     // Hack together File1's I-node
-    Inode *inode_file1 = inode_firstfree(fs);
+    Inode *inode_file1 = inode_nextfree(fs);
     inode_set_fname(fs, inode_file1, "/file1\0", 7);
     inode_file1->offset_firstblk = (size_t*) offset_from_ptr(fs, (void*)memblock1);   // Set file's first (only) memblock
-    inode_set_filedata(fs, inode_file1, "hello from file 1\0", 18);
+    inode_setdata(fs, inode_file1, "hello from file 1\0", 18);
 
     // Display file1 inode properties to verify correctness
     printf("\nExamining file1 inode - ");
@@ -854,39 +894,41 @@ int main()
     printf("\n\n---- Starting Test File 2 (triple memory block) -----\n");
 
     // Setup File2's I-node
-    Inode *inode_file2 = inode_firstfree(fs);
+    Inode *inode_file2 = inode_nextfree(fs);
     inode_set_fname(fs, inode_file2, "/file2\0", 7);
-    inode_file2->offset_firstblk = (size_t*)offset_from_ptr(fs, (void*)memblock_firstfree(fs));   // Set file's first memblock
+    inode_file2->offset_firstblk = (size_t*)offset_from_ptr(fs, (void*)memblock_nextfree(fs));   // Set file's first memblock
 
     // Build a string of a's twice the size of a data field
     size_t num_chars = DATAFIELD_SZ_B * 2;
     char *oversized_chars = malloc(num_chars);
     for (size_t i = 0; i < num_chars; i++) {
         char *c = oversized_chars + i;
-        *c = 'a';
+
+        if (i < num_chars / 2)
+            *c = 'a';
+        else
+            *c = 'b';
     }
     char *d = (oversized_chars + num_chars - 1);
-        *d = '\0';
+    *d = '\0';
 
     // Populate the file with data from oversized element
-    // inode_set_filedata(fs, inode_file2, oversized_chars, num_chars);
-    inode_set_filedata(fs, inode_file2, "test\0", 5);
+    inode_setdata(fs, inode_file2, oversized_chars, num_chars);
+    // inode_setdata(fs, inode_file2, "test\0", 5);
 
     // Display file2 properties to verify correctness
     printf("\nExamining file2 inode - ");
     print_inode_debug(inode_file2);
     
-    printf("\nExamining file1 memblock 1 - ");
-    print_memblock_debug(fs, memblock1);
     printf("\nExamining file2 memblock 1 - ");
     print_memblock_debug(fs, ptr_from_offset(fs, inode_file2->offset_firstblk));
 
-    // printf("\nExamining file2 data:\n");
-    // char *buf1 = malloc(1);
-    // data_sz = memblock_getdata(fs, ptr_from_offset(fs, inode_file2->offset_firstblk), buf1);
-    // printf("    Data: %s\n", buf1);
-    // printf("    Size: %lu\n", data_sz);
-    // free(buf1);
+    printf("\nExamining file2 data:\n");
+    char *buf1 = malloc(1);
+    data_sz = memblock_getdata(fs, ptr_from_offset(fs, inode_file2->offset_firstblk), buf1);
+    printf("    Data: %s\n", buf1);
+    printf("    Size: %lu\n", data_sz);
+    free(buf1);
 
     // printf("\nExamining file1 data:\n");
     // char *buf2 = malloc(1);
