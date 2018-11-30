@@ -274,6 +274,7 @@ size_t memblock_getdata(FSHandle *fs, MemHead *memhead, char *buf) {
 }
 
 // Sets the file or directory name (of length sz) for the given inode.
+// Assumes fname is null-terminated.
 void inode_set_fname(FSHandle *fs, Inode *inode, char *fname, size_t sz) {
     strncpy(inode->fname, fname, sz); 
 }
@@ -301,7 +302,6 @@ static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
         size_t blocks_needed = num_bytes / DATAFIELD_SZ_B;
         
         // Debug
-        // printf("memblock_byes: %lu\n", DATAFIELD_SZ_B);
         // printf("Need %lu blocks for this operation ", blocks_needed);
         // printf("of %lu bytes\n", num_bytes);
 
@@ -324,9 +324,6 @@ static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
             strncpy(ptr_writeto, data_idx, write_bytes);
             memblock->data_size_b = (size_t*)write_bytes;
 
-            // Advance data index by the size just written
-            data_idx += write_bytes;
-
             // Update next block offsets as needed
             if (prev_block) 
                 prev_block->offset_nextblk = (size_t*)offset_from_ptr(fs, (void*)memblock);
@@ -334,6 +331,7 @@ static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
             memblock->offset_nextblk = 0;
         
             // Set up the next iteration
+            data_idx += write_bytes;
             num_bytes = num_bytes - write_bytes; // Adjust num bytes to write
             memblock = memblock_nextfree(fs); // Adavance to next free memblock
         }
@@ -875,10 +873,7 @@ int main()
     printf("\nExamining file1 inode - ");
     print_inode_debug(inode_file1);
 
-    printf("\nExamining file1 memblock - ");
-    print_memblock_debug(fs, memblock1);
-
-    printf("\nExamining file1 data:\n");
+    printf("\nFile1 data:\n");
     char *buf0 = malloc(1);
     size_t data_sz = memblock_getdata(fs, memblock1, buf0);
     write(fileno(stdout), buf0, data_sz);
@@ -894,7 +889,7 @@ int main()
     inode_file2->offset_firstblk = (size_t*)offset_from_ptr(fs, (void*)memblock_nextfree(fs));   // Set file's first memblock
 
     // Build a large string of half a's, half b's, and terminated with a 'c'.
-    size_t num_chars = (DATAFIELD_SZ_B * 2) + 10;
+    size_t num_chars = (DATAFIELD_SZ_B * 1) + 10;
     char *oversized_chars = malloc(num_chars);
     for (size_t i = 0; i < num_chars; i++) {
         char *c = oversized_chars + i;
@@ -914,7 +909,7 @@ int main()
     printf("\nExamining file2 inode - ");
     print_inode_debug(inode_file2);
     
-    printf("\nExamining file2 data:\n");
+    printf("\nFile2 data:\n");
     char *buf1 = malloc(1);
     data_sz = memblock_getdata(fs, ptr_from_offset(fs, inode_file2->offset_firstblk), buf1);
     write(fileno(stdout), buf1, data_sz);
