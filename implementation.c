@@ -73,10 +73,10 @@ typedef struct Inode {
 // Memory block header -
 // Each file/dir uses one or more memory blocks.
 typedef struct MemHead {
-    // TODO: int *is_free;           // Denotes memory block is free for use.
-    size_t *data_size_b;    // Size of data field occupied, or 0 if block free
+    int *not_free;          // Denotes memory block in use by a file (1 = used)
+    size_t *data_size_b;    // Size of data field occupied
     size_t *offset_nextblk; // Bytes offset (from fsptr) to next block of 
-                            // file's data, if any. Else 0.
+                            // file's data if any, else 0
 } MemHead;
 
 // Top-level filesystem handle
@@ -153,7 +153,7 @@ static void* memblock_datafield(FSHandle *fs, MemHead *memblock){
 }
 // Returns 1 if the given memory block is free, else returns 0.
 static int memblock_isfree(MemHead *memhead) {
-    if (memhead->data_size_b == 0)
+    if (memhead->not_free == 0)
         return 1;
     return 0;
 }
@@ -292,6 +292,7 @@ static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     if (sz <= DATAFIELD_SZ_B) {
         void *data_field = memblock + ST_SZ_MEMHEAD;
         strncpy(data_field, data, sz);
+        memblock->not_free = (int*)1;
         memblock->data_size_b = (size_t*) sz;
         memblock->offset_nextblk = 0;
     }
@@ -323,6 +324,7 @@ static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
 
             // write the bytes to the data field
             strncpy(ptr_writeto, data_idx, write_bytes);
+            memblock->not_free = (int*)1;
             memblock->data_size_b = (size_t*)write_bytes;
 
             // Update next block offsets as needed
