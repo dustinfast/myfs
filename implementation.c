@@ -174,6 +174,23 @@ static MemHead* memblock_nextfree(FSHandle *fs) {
     return NULL;
 }
 
+// Returns the number of free memblocks in the filesystem
+static size_t memblocks_numfree(FSHandle *fs) {
+    MemHead *memblock = fs->mem_seg;
+    size_t num_memblocks = fs->num_memblocks;
+    size_t num_free = 0;
+
+    for (int i = 0; i < num_memblocks; i++)
+    {
+        if (memblock_isfree(memblock))
+            num_free++;
+
+        memblock = memblock + (sizeof(MEMBLOCK_SZ_B) * sizeof(void*));
+    }
+
+    return num_free;
+}
+
 /* -- memblock_getdata() -- */
 /* Given FSHandle and MemHead ptrs, populates the memory pointed to by buff
    with a string representating that memblock's data, plus the data fields of
@@ -273,6 +290,22 @@ static Inode* inode_nextfree(FSHandle *fs) {
     return NULL;
 }
 
+// Returns the number of free inodes in the filesystem
+static size_t inodes_numfree(FSHandle *fs) {
+    Inode *inode = fs->inode_seg;
+    size_t num_inodes = fs->num_inodes;
+    size_t num_free = 0;
+
+    for (int i = 0; i < num_inodes; i++) {
+        if (inode_isfree(inode))
+            num_free++;
+
+        inode++; // ptr arithmetic
+    }
+
+    return num_free;
+}
+
 // Sets the file or directory name (of length sz) for the given inode.
 // Assumes fname is null-terminated.
 void inode_set_fname(FSHandle *fs, Inode *inode, char *fname, size_t sz) {
@@ -315,14 +348,14 @@ static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
         while (num_bytes) {
             // Determine num bytes to write this iteration
             if (num_bytes > DATAFIELD_SZ_B)
-                write_bytes = DATAFIELD_SZ_B;   // More blocks needed
+                write_bytes = DATAFIELD_SZ_B;  // More blocks needed
             else
-                write_bytes = num_bytes;        // On last block needed
+                write_bytes = num_bytes;       // Last block needed
 
             // Denote ptr to write addr
             char *ptr_writeto = memblock_datafield(fs, memblock);
 
-            // write the bytes to the data field
+            // Write the bytes to the data field
             strncpy(ptr_writeto, data_idx, write_bytes);
             memblock->not_free = (int*)1;
             memblock->data_size_b = (size_t*)write_bytes;
@@ -344,34 +377,6 @@ static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     inode->file_size_b = (size_t*) sz;
 
     return 1;
-}
-
-static int fs_can_accomodate(FSHandle *fs, size_t sz) {
-    size_t num_memblocks = 0;
-    size_t num_freememblocks = 0;
-    size_t num_inodes = 0;
-    size_t num_freeinodes = 0;
-
-
-    // Determine num free memblocks in fs
-    MemHead *memblock = fs->mem_seg;  // First memblock in fs
-    
-    // while (memblock->offset_nextblk) {
-    //     if (memblock->is_free)
-
-    // }
-        
-    // // If on the last (or only) memblock of the sequence, stop iterating
-    // if (memblock->offset_nextblk == 0)
-    //     break;
-    
-    // // Else, start operating on the next memblock in the sequence
-    // else
-    //     memblock = (MemHead*) ptr_from_offset(fs, memblock->offset_nextblk);
-
-
-
-
 }
 
 // Maps a filesystem of size fssize onto fsptr and returns a handle to it.
@@ -873,6 +878,7 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t
 // TODO: static dir_createnew(FSHandle *fs, const char *path, const char *dirname)
 // TODO: static char* inode_get_data
 
+
 int main() 
 {
     // Print welcome & struct size details
@@ -956,8 +962,9 @@ int main()
 
     printf("\nExiting...\n");
     free(buf0);
-    // free(buf1);
+    free(buf1);
     free(fsptr);
+
     return 0; 
 } 
 
