@@ -300,6 +300,7 @@ static size_t inodes_numfree(FSHandle *fs) {
 int inode_set_fname(FSHandle *fs, Inode *inode, char *fname) {
     if (!file_name_isvalid(fname))
         return 0;
+
     strcpy(inode->fname, fname); 
     return 1;
 }
@@ -312,11 +313,11 @@ static size_t inode_getdata(FSHandle *fs, Inode *inode, char *buf) {
 
 // Sets the data field and updates size fields for the file denoted by inode.
 // Also sets up the linked list of memory blocks for the file, as needed.
-// Returns 1 on success, else 0. A 0 likely denotes a full file system.
+// Returns: 1 on success, else 0. A 0 likely denotes a full file system.
 // Assumes: Filesystem has enough free memblocks to accomodate data.
 // Assumes: inode has its offset_firstblk set.
 // Assumes: inode has not previously had data assigned to it.
-static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
+static void inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     MemHead *memblock = ptr_from_offset(fs, inode->offset_firstblk);
 
     // Use a single block if sz will fit in one
@@ -372,22 +373,33 @@ static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
 
     inode_setlasttime(inode, 1);
     inode->file_size_b = (size_t*) sz;
-
-    return 1;
 }
 
 // Creates a new file in the fs having the given properties.
-// Returns: A ptr to the newly created file's I-node.
+// Returns: A ptr to the newly created file's I-node (or NULL on fail)
 // Assumes: path and file name are null-terminated.
 static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t data_sz) {
-    // TODO: Ensure adequete room in fs
-    Inode *newfile_inode = inode_nextfree(fs);
-    // TODO: Validate fname
-    inode_set_fname(fs, newfile_inode, fname);
-    size_t offset_firstblk = offset_from_ptr(fs, (void*)memblock_nextfree(fs));
-    newfile_inode->offset_firstblk = (size_t*) offset_firstblk;
-    inode_setdata(fs, newfile_inode, data, data_sz);
-    return newfile_inode;
+    if (memblocks_numfree(fs) <  data_sz / DATAFIELD_SZ_B)
+        return NULL;  // Insufficient room in fs to accomodate data
+
+    Inode *inode = inode_nextfree(fs); // File's inode
+    if (!inode)
+        return NULL;  // Could not find a free inode
+
+    MemHead *memblock = memblock_nextfree(fs);  // File's first memblock
+    if (!memblock)
+        return NULL;  // Could not find a free memblock
+
+    if (!inode_set_fname(fs, inode, fname))
+        return NULL; // Invalid filename
+    
+    size_t offset_firstblk = offset_from_ptr(fs, (void*)memblock);
+    inode->offset_firstblk = (size_t*)offset_firstblk;
+    inode_setdata(fs, inode, data, data_sz);
+    
+    // TODO: Update file's parent directory to include this file
+
+    return inode;
 }
 
 // Maps a filesystem of size fssize onto fsptr and returns a handle to it.
