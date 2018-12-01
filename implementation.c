@@ -44,7 +44,8 @@
     # TODO: Add addtl docs to README.md
 
     Design Decisions:
-        Assumes single process access.
+        Assume a single process accessing the fs at a time?
+        To begin writing data before checking fs has enough room?
 
 
 /* End File System Documentation ------------------------------------------ */
@@ -72,6 +73,7 @@ typedef struct Inode {
 // Memory block header -
 // Each file/dir uses one or more memory blocks.
 typedef struct MemHead {
+    // TODO: int *is_free;           // Denotes memory block is free for use.
     size_t *data_size_b;    // Size of data field occupied, or 0 if block free
     size_t *offset_nextblk; // Bytes offset (from fsptr) to next block of 
                             // file's data, if any. Else 0.
@@ -127,7 +129,6 @@ static size_t offset_from_ptr(FSHandle *fs, void *ptr) {
 
 
 // TODO: Inode* file_resolvepath(FSHandle *fs, const char *path) {
-// TODO: char* file_get_data(FSHandle *fs, const char *path) {
 
 // Returns 1 iff fname is legal ascii chars and within max length, else 0.
 static int file_name_isvalid(char *fname) {
@@ -283,7 +284,7 @@ void inode_set_fname(FSHandle *fs, Inode *inode, char *fname, size_t sz) {
 // Also sets up the linked list of memory blocks for the file, as needed.
 // Returns 1 on success, else 0. A 0 likely denotes a full file system.
 // Assumes: Filesystem has enough free memblocks to accomodate data.
-// Assumes inode already has its offset_firstblk set.
+// Assumes: inode has its offset_firstblk set.
 static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     MemHead *memblock = ptr_from_offset(fs, inode->offset_firstblk);
 
@@ -303,8 +304,7 @@ static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
         size_t blocks_needed = num_bytes / DATAFIELD_SZ_B;
         
         // Debug
-        // printf("Need %lu blocks for this operation ", blocks_needed);
-        // printf("of %lu bytes\n", num_bytes);
+        // printf("Need %lu blocks for these %lu bytes\n ", blocks_needed, num_bytes);
 
         // Populate the memory blocks with the data
         char *data_idx = data;
@@ -344,8 +344,36 @@ static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     return 1;
 }
 
+static int fs_can_accomodate(FSHandle *fs, size_t sz) {
+    size_t num_memblocks = 0;
+    size_t num_freememblocks = 0;
+    size_t num_inodes = 0;
+    size_t num_freeinodes = 0;
+
+
+    // Determine num free memblocks in fs
+    MemHead *memblock = fs->mem_seg;  // First memblock in fs
+    
+    // while (memblock->offset_nextblk) {
+    //     if (memblock->is_free)
+
+    // }
+        
+    // // If on the last (or only) memblock of the sequence, stop iterating
+    // if (memblock->offset_nextblk == 0)
+    //     break;
+    
+    // // Else, start operating on the next memblock in the sequence
+    // else
+    //     memblock = (MemHead*) ptr_from_offset(fs, memblock->offset_nextblk);
+
+
+
+
+}
+
 // Maps a filesystem of size fssize onto fsptr and returns a handle to it.
-static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
+static FSHandle* fs_get_handle(void *fsptr, size_t size) {
     if (size < MIN_FS_SZ_B) return NULL; // Ensure adequate size given
 
     // Map file system structure onto the given memory space
@@ -368,7 +396,7 @@ static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
     
     // If first bytes aren't our magic number, format the mem space for the fs
     if (fs->magic != MAGIC_NUM) {
-        // printf("    ** NOTE: Virgin memspace was detected & formatted.\n"); // debug
+        printf("    ** NOTE: Virgin memspace was detected & formatted.\n"); // debug
         
         // Format mem space w/zero-fill
         memset(fsptr, 0, fs_size);                  
@@ -389,7 +417,7 @@ static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
         
         // Set up 0th memory block as the root directory
         // TODO: Write root dir table
-        inode_setdata(fs, fs->inode_seg, "hello world\0", 12);
+        inode_setdata(fs, fs->inode_seg, "hello world\0", 12);  // debug
     } 
 
     // Otherwise, just update the handle info
@@ -405,7 +433,7 @@ static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
 }
 
 
-/* End Our Filesystem helpers --------------------------------------------- */
+/* End Filesystem helpers ------------------------------------------------ */
 /* Begin Our 13 implementations ------------------------------------------- */
 
 
@@ -446,7 +474,7 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
     Inode *inode;   // Ptr to the inode for the given path
 
     // Bind fs to the filesystem
-    fs = get_filesys_handle(fsptr, fssize);
+    fs = fs_get_handle(fsptr, fssize);
     if (!fs) {
         *errnoptr = EFAULT;
         return -1;  // Fail - bad fsptr or fssize given
@@ -824,6 +852,24 @@ void print_fs_debug(FSHandle *fs) {
     // TODO: printf("Free space      : %lu bytes (%lu kb)\n", space_free(&fs), bytes_to_kb(space_free(&fs));
 }
 
+// Creates a new file in the fs having the given properties.
+// Returns: A ptr to the newly created file's I-node.
+// Assumes: path and file name are null-terminated.
+static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t data_sz) {
+    // Ensure adequete room in fs
+
+    Inode *newfile_inode = inode_nextfree(fs);
+    // TODO: Validate fname
+    inode_set_fname(fs, newfile_inode, "fname", 7);
+    size_t offset_firstblk = offset_from_ptr(fs, (void*)memblock_nextfree(fs));
+    newfile_inode->offset_firstblk = (size_t*) offset_firstblk;
+    inode_setdata(fs, newfile_inode, data, data_sz);
+    return newfile_inode;
+    }
+
+// TODO: static char* file_get_data(FSHandle *fs, const char *path) {
+// TODO: static dir_createnew(FSHandle *fs, const char *path, const char *dirname)
+// TODO: static char* inode_get_data
 
 int main() 
 {
@@ -838,11 +884,8 @@ int main()
     void *fsptr = malloc(fssize);
     
     // Associate the filesys with a handle.
-    // Note: The two vars above are used as args to the call immediately below, 
-    // Each of our 13 stubs will need a call exactly like this one to "recover"
-    // the global filesystem.
     printf("Getting filesys handle for the first time...\n");
-    FSHandle *fs = get_filesys_handle(fsptr, fssize);
+    FSHandle *fs = fs_get_handle(fsptr, fssize);
 
     printf("\n    ");
     print_fs_debug(fs);
@@ -863,64 +906,55 @@ int main()
     // Begin Single memblock Test File - 
     printf("\n\n---- Starting Test File 1 (single memory block) -----\n");
 
-    // File1's memory block
-    MemHead *memblock1 = memblock_nextfree(fs);
-    
-    // Hack together File1's I-node
-    Inode *inode_file1 = inode_nextfree(fs);
-    inode_set_fname(fs, inode_file1, "/file1\0", 7);
-    inode_file1->offset_firstblk = (size_t*) offset_from_ptr(fs, (void*)memblock1);   // Set file's first (only) memblock
-    inode_setdata(fs, inode_file1, "hello from file 1", 17);
+    // Create File2
+    Inode *file1 = file_new(fs, "/\0", "file1\0", "hello from file 1", 17);
 
     // Display file1 inode properties to verify correctness
     printf("\nExamining file1 inode - ");
-    print_inode_debug(inode_file1);
+    print_inode_debug(file1);
 
     printf("\nFile1 data:\n");
     char *buf0 = malloc(1);
-    size_t data_sz = memblock_getdata(fs, memblock1, buf0);
+    size_t data_sz = memblock_getdata(fs, ptr_from_offset(fs, file1->offset_firstblk), buf0);
+
     write(fileno(stdout), buf0, data_sz);
     printf("\nSize: %lu\n", data_sz);
 
     /////////////////////////////////////////////////////////////////////////
     // Begin Multi-memblock Test File -
-    printf("\n\n---- Starting Test File 2 (triple memory block) -----\n");
+    printf("\n\n---- Starting Test File 2 (two memory blocks) -----\n");
 
-    // Setup File2's I-node
-    Inode *inode_file2 = inode_nextfree(fs);
-    inode_set_fname(fs, inode_file2, "/file2\0", 7);
-    inode_file2->offset_firstblk = (size_t*)offset_from_ptr(fs, (void*)memblock_nextfree(fs));   // Set file's first memblock
+    // Build data: a str of half a's, half b's, and terminated with a 'c'.
+    data_sz = (DATAFIELD_SZ_B * 1) + 10;  // Note: larger than 12 memblocks
+    char *lg_data = malloc(data_sz);
+    for (size_t i = 0; i < data_sz; i++) {
+        char *c = lg_data + i;
 
-    // Build a large string of half a's, half b's, and terminated with a 'c'.
-    size_t num_chars = (DATAFIELD_SZ_B * 1) + 10;
-    char *oversized_chars = malloc(num_chars);
-    for (size_t i = 0; i < num_chars; i++) {
-        char *c = oversized_chars + i;
-
-        if (i < num_chars / 2)
+        if (i < data_sz / 2)
             *c = 'a';
-        else if (i == num_chars - 1)
+        else if (i == data_sz - 1)
             *c = 'c';
         else
             *c = 'b';
     }
 
-    // Populate the file with data from oversized element
-    inode_setdata(fs, inode_file2, oversized_chars, num_chars);
+    // Create File2
+    Inode *file2 = file_new(fs, "/\0", "file2\0", lg_data, data_sz);
 
-    // Display file2 properties to verify correctness
+    // Display file2 properties for verification
     printf("\nExamining file2 inode - ");
-    print_inode_debug(inode_file2);
+    print_inode_debug(file2);
     
     printf("\nFile2 data:\n");
+    // TOOD: print_file_debug 
     char *buf1 = malloc(1);
-    data_sz = memblock_getdata(fs, ptr_from_offset(fs, inode_file2->offset_firstblk), buf1);
+    data_sz = memblock_getdata(fs, ptr_from_offset(fs, file2->offset_firstblk), buf1);
     write(fileno(stdout), buf1, data_sz);
     printf("\nSize: %lu\n", data_sz);
 
     printf("\nExiting...\n");
     free(buf0);
-    free(buf1);
+    // free(buf1);
     free(fsptr);
     return 0; 
 } 
