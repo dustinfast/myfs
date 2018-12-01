@@ -123,6 +123,26 @@ static size_t offset_from_ptr(FSHandle *fs, void *ptr) {
     return ptr - (void*)fs;
 }
 
+// Returns 1 iff fname is legal ascii chars and within max length, else 0.
+// Assumes: fname is null-terminated
+static int file_name_isvalid(char *fname) {
+    int len = 0;
+    int ord = 0;
+
+    for (char *c = fname; *c != '\0'; c++) {
+        ord = (int) *c;
+        if (ord < 32 || ord == 44 || ord  == 47 || ord > 122)
+            return 0;  // illegal ascii char found
+        len++;
+
+        if (len > FNAME_MAXLEN)
+            return 0;
+    }
+
+    if (len)
+        return 1;
+}
+
 
 /* End Our Utility helpers ------------------------------------------------ */
 /* Begin Our Filesystem helpers ------------------------------------------- */
@@ -204,12 +224,9 @@ size_t memblock_getdata(FSHandle *fs, MemHead *memhead, char *buf) {
         memcpy(buf_writeat, memblocks_data_field, sz_to_write);
         
         // Debug
-        // printf("buf: %lu\n", (long unsigned int)buf);
-        // printf("buf_writeat: %lu\n", (long unsigned int)buf_writeat);
         // printf("sz_to_write: %lu\n", sz_to_write);
         // printf("Memblock Data:\n");
         // write(fileno(stdout), (char *)buf_writeat, sz_to_write);
-        // printf("\n");
         
         // If on the last (or only) memblock of the sequence, stop iterating
         if (memblock->offset_nextblk == 0)
@@ -221,7 +238,7 @@ size_t memblock_getdata(FSHandle *fs, MemHead *memhead, char *buf) {
     }
 
     // Debug
-    // printf("Bytes written: %lu\n", total_sz);
+    // printf("Bytes written: %lu", total_sz);
     // write(fileno(stdout), buf, total_sz);
 
     return total_sz;
@@ -278,10 +295,13 @@ static size_t inodes_numfree(FSHandle *fs) {
 }
 
 // Sets the file or directory name (of length sz) for the given inode.
-// Assumes fname is null-terminated.
-void inode_set_fname(FSHandle *fs, Inode *inode, char *fname, size_t sz) {
-    // TODO: Ensure valid fname
-    strncpy(inode->fname, fname, sz); 
+// Assumes: fname is null-terminated.
+// Returns: 1 on success, else 0 (likely due to invalid filename)
+int inode_set_fname(FSHandle *fs, Inode *inode, char *fname) {
+    if (!file_name_isvalid(fname))
+        return 0;
+    strcpy(inode->fname, fname); 
+    return 1;
 }
 
 // Populates buf with a string representing the given inode's data.
@@ -312,7 +332,6 @@ static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     else {
         // Determine num blocks needed
         size_t num_bytes = sz;
-        size_t memblock_bytes = num_bytes - DATAFIELD_SZ_B;
         size_t blocks_needed = num_bytes / DATAFIELD_SZ_B;
         
         // Debug
@@ -357,24 +376,6 @@ static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     return 1;
 }
 
-// Returns 1 iff fname is legal ascii chars and within max length, else 0.
-// Assumes: fname is null-terminated
-static int file_name_isvalid(char *fname) {
-    int len = 0;
-    int ord = 0;
-
-    for (char *c = fname; *c != '\0'; c++) {
-        ord = (int) *c;
-        if (ord < 32 || ord == 44 || ord  == 47 || ord > 122)
-            return 0;  // illegal ascii char found
-        len++;
-    }
-
-    if (len && len <= FNAME_MAXLEN)
-        return 1;
-    return 0;
-}
-
 // Creates a new file in the fs having the given properties.
 // Returns: A ptr to the newly created file's I-node.
 // Assumes: path and file name are null-terminated.
@@ -382,7 +383,7 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t
     // TODO: Ensure adequete room in fs
     Inode *newfile_inode = inode_nextfree(fs);
     // TODO: Validate fname
-    inode_set_fname(fs, newfile_inode, "fname", 7);
+    inode_set_fname(fs, newfile_inode, fname);
     size_t offset_firstblk = offset_from_ptr(fs, (void*)memblock_nextfree(fs));
     newfile_inode->offset_firstblk = (size_t*) offset_firstblk;
     inode_setdata(fs, newfile_inode, data, data_sz);
