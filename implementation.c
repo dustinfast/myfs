@@ -282,7 +282,8 @@ void inode_set_fname(FSHandle *fs, Inode *inode, char *fname, size_t sz) {
 // Sets the data field and updates size fields for the file denoted by inode.
 // Also sets up the linked list of memory blocks for the file, as needed.
 // Returns 1 on success, else 0. A 0 likely denotes a full file system.
-// TODO: Currently assumes inode already has offset_firstblk set -> fix this!
+// Assumes: Filesystem has enough free memblocks to accomodate data.
+// Assumes inode already has its offset_firstblk set.
 static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     MemHead *memblock = ptr_from_offset(fs, inode->offset_firstblk);
 
@@ -441,41 +442,42 @@ static FSHandle* get_filesys_handle(void *fsptr, size_t size) {
 int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
                           uid_t uid, gid_t gid,
                           const char *path, struct stat *stbuf) {
-      FSHandle *fs_handle;
-      Inode *inode;
+    FSHandle *fs;   // Handle to the file system
+    Inode *inode;   // Ptr to the inode for the given path
 
-      // Bind fs_handle to fs
-      fs_handle = get_filesys_handle(fsptr, fssize);
-      if (!fs_handle) {
-            *errnoptr = EFAULT;
-            return -1;  // Fail - bad fsptr or fssize given
-      }    
+    // Bind fs to the filesystem
+    fs = get_filesys_handle(fsptr, fssize);
+    if (!fs) {
+        *errnoptr = EFAULT;
+        return -1;  // Fail - bad fsptr or fssize given
+    }    
 
-      inode = fs_handle->inode_seg; // TODO: inode = path_resolve(fs_handle, path);
-      if (!inode) {
-            *errnoptr = ENOENT;
-            return -1;  // Fail - bad path given
-      }    
+    // TODO: inode = path_resolve(fs, path) instead of fs->inode_seg
+    inode = fs->inode_seg;
+    if (!inode) {
+        *errnoptr = ENOENT;
+        return -1;  // Fail - bad path given
+    }    
+
+    //Reset the memory of the results container
+    memset(stbuf, 0, sizeof(struct stat));   
+
+    //Populate stdbuf based on the inode
+    stbuf->st_uid = uid;
+    stbuf->st_gid = gid;
+    stbuf->st_atim = *inode->last_acc; 
+    stbuf->st_mtim = *inode->last_mod;    
     
-      //Reset the memory of the results container
-      memset(stbuf, 0, sizeof(struct stat));   
+    if (inode->is_dir) {
+        stbuf->st_mode = S_IFDIR | 0755;
+        stbuf->st_nlink = *inode->subdirs + 2;  // "+ 2" for . and .. 
+    } else {
+        stbuf->st_mode = S_IFREG | 0755;
+        stbuf->st_nlink = 1;
+        stbuf->st_size = *inode->file_size_b;
+    } 
 
-      //Populate stdbuf based on the inode
-      stbuf->st_uid = uid;
-      stbuf->st_gid = gid;
-      stbuf->st_atim = *inode->last_acc; 
-      stbuf->st_mtim = *inode->last_mod;    
-      
-      if (inode->is_dir) {
-            stbuf->st_mode = S_IFDIR | 0755;
-            stbuf->st_nlink = *inode->subdirs + 2;  // + 2 for . and ..
-      } else {
-            stbuf->st_mode = S_IFREG | 0755;
-            stbuf->st_nlink = 1;
-            stbuf->st_size = *inode->file_size_b;
-      } 
-
-      return 0;  // Success  
+    return 0;  // Success  
 }
 
 /* Implements an emulation of the readdir system call on the filesystem 
@@ -802,6 +804,7 @@ void print_inode_debug(Inode *inode) {
     printf("    is_dir              : %lu\n", (lui)inode->is_dir);
     printf("    subdirs             : %lu\n", (lui)inode->subdirs);
     printf("    file_size_b         : %lu\n", (lui)inode->file_size_b);
+    // TODO: Test last_acc and last_mod
     // strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_acc->tv_sec));
     // printf("    last_acc            : %s.%09ld\n", buff, inode->last_acc->tv_sec);
     // strftime(buff, sizeof buff, "%T", gmtime((void*)inode->last_mod->tv_sec));
@@ -818,7 +821,7 @@ void print_fs_debug(FSHandle *fs) {
     printf("    fs->size_b      : %lu (%lu kb)\n", fs->size_b, bytes_to_kb(fs->size_b));
     printf("    fs->inode_seg   : %lu\n", (lui)fs->inode_seg);
     printf("    fs->mem_seg     : %lu\n", (lui)fs->mem_seg);
-    // printf("Free space      : %lu bytes (%lu kb)\n", space_free(&fs), bytes_to_kb(space_free(&fs));
+    // TODO: printf("Free space      : %lu bytes (%lu kb)\n", space_free(&fs), bytes_to_kb(space_free(&fs));
 }
 
 
@@ -830,7 +833,7 @@ int main()
     print_struct_debug();
     printf("\n");
       
-    // Allocate mem space file system will occupy (usually done by m fs.c)
+    // Allocate mem space file system will occupy (usually done by myfs.c)
     size_t fssize = kb_to_bytes(16) + ST_SZ_FSHANDLE;  // kb align after handle
     void *fsptr = malloc(fssize);
     
