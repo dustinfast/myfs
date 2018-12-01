@@ -121,13 +121,16 @@ static size_t offset_from_ptr(FSHandle *fs, void *ptr) {
     return ptr - (void*)fs;
 }
 
-// Returns a ptr to a memory blocks data field.
-static void* memblock_datafield(FSHandle *fs, MemHead *memblock){
-    return (void*)(memblock + ST_SZ_MEMHEAD);
-}
+
+/* End Our Utility helpers ------------------------------------------------ */
+/* Begin Our Filesystem helpers ------------------------------------------- */
+
+
+// TODO: Inode* file_resolvepath(FSHandle *fs, const char *path) {
+// TODO: char* file_get_data(FSHandle *fs, const char *path) {
 
 // Returns 1 iff fname is legal ascii chars and within max length, else 0.
-static int filename_isvalid(char *fname) {
+static int file_name_isvalid(char *fname) {
     int len = 0;
     int ord = 0;
 
@@ -143,50 +146,10 @@ static int filename_isvalid(char *fname) {
     return 0;
 }
 
-// Sets the last access time for the given node to the current time.
-// If set_modified, also sets the last modified time to the current time.
-static void inode_set_lasttime(Inode *inode, int set_modified) {
-    if (!inode) return;  // Validate node
-
-    struct timespec tspec;
-    clock_gettime(CLOCK_REALTIME, &tspec);
-
-    inode->last_acc = &tspec;
-    if (set_modified)
-        inode->last_mod = &tspec;
+// Returns a ptr to a memory block's data field.
+static void* memblock_datafield(FSHandle *fs, MemHead *memblock){
+    return (void*)(memblock + ST_SZ_MEMHEAD);
 }
-
-// Returns 1 if the given inode is free, else returns 0.
-static int inode_isfree(Inode *inode) {
-    if (inode->offset_firstblk == 0)
-        return 1;
-    return 0;
-}
-
-// Returns the first free inode in the given filesystem
-static Inode* inode_nextfree(FSHandle *fs) {
-    Inode *inode = fs->inode_seg;
-    size_t num_inodes = fs->num_inodes;
-
-    for (int i = 0; i < num_inodes; i++)
-    {
-        if (inode_isfree(inode))
-            return inode;
-
-        inode++; // ptr arithmetic
-    }
-
-    return NULL;
-}
-
-
-/* End Our Utility helpers ------------------------------------------------ */
-/* Begin Our Filesystem helpers ------------------------------------------- */
-
-
-// TODO: Inode* resolve_path(FSHandle *fs, const char *path) {
-// TODO: char* get_file_data(FSHandle *fs, const char *path) {
-
 // Returns 1 if the given memory block is free, else returns 0.
 static int memblock_isfree(MemHead *memhead) {
     if (memhead->data_size_b == 0)
@@ -273,9 +236,46 @@ size_t memblock_getdata(FSHandle *fs, MemHead *memhead, char *buf) {
     return total_sz;
 }
 
+// Sets the last access time for the given node to the current time.
+// If set_modified, also sets the last modified time to the current time.
+static void inode_set_lasttime(Inode *inode, int set_modified) {
+    if (!inode) return;  // Validate node
+
+    struct timespec tspec;
+    clock_gettime(CLOCK_REALTIME, &tspec);
+
+    inode->last_acc = &tspec;
+    if (set_modified)
+        inode->last_mod = &tspec;
+}
+
+// Returns 1 if the given inode is free, else returns 0.
+static int inode_isfree(Inode *inode) {
+    if (inode->offset_firstblk == 0)
+        return 1;
+    return 0;
+}
+
+// Returns the first free inode in the given filesystem
+static Inode* inode_nextfree(FSHandle *fs) {
+    Inode *inode = fs->inode_seg;
+    size_t num_inodes = fs->num_inodes;
+
+    for (int i = 0; i < num_inodes; i++)
+    {
+        if (inode_isfree(inode))
+            return inode;
+
+        inode++; // ptr arithmetic
+    }
+
+    return NULL;
+}
+
 // Sets the file or directory name (of length sz) for the given inode.
 // Assumes fname is null-terminated.
 void inode_set_fname(FSHandle *fs, Inode *inode, char *fname, size_t sz) {
+    // TODO: Ensure valid fname
     strncpy(inode->fname, fname, sz); 
 }
 
