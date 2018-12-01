@@ -129,23 +129,7 @@ static size_t offset_from_ptr(FSHandle *fs, void *ptr) {
 
 
 // TODO: Inode* file_resolvepath(FSHandle *fs, const char *path) {
-
-// Returns 1 iff fname is legal ascii chars and within max length, else 0.
-static int file_name_isvalid(char *fname) {
-    int len = 0;
-    int ord = 0;
-
-    for (char *c = fname; *c != '\0'; c++) {
-        ord = (int) *c;
-        if (ord < 32 || ord == 44 || ord  == 47 || ord > 122)
-            return 0;  // illegal ascii char found
-        len++;
-    }
-
-    if (len && len <= FNAME_MAXLEN)
-        return 1;
-    return 0;
-}
+// TODO: static dir_createnew(FSHandle *fs, const char *path, const char *dirname)
 
 // Returns a ptr to a memory block's data field.
 static void* memblock_datafield(FSHandle *fs, MemHead *memblock){
@@ -189,18 +173,9 @@ static size_t memblocks_numfree(FSHandle *fs) {
     return num_free;
 }
 
-/* -- memblock_getdata() -- */
-/* Given FSHandle and MemHead ptrs, populates the memory pointed to by buff
-   with a string representating that memblock's data, plus the data fields of
-   any subsequent MemBlocks pointed to by memblock->offset_nextblk field. 
-   Note: If memhead is a ptr to the first block in a file, this function
-   effectively populates buf with all the data for that file.
-    Accepts:
-        fs      (FSHandle)  : Ptr to a filesystem in memory
-        memhead (MemHead)   : Ptr to a MemHead containing desired data
-        buf     (void*)     : Ptr to a dynamically allocated array w/size = 1
-    Returns: 
-        size_t              : Denotes the size of the data at buf  */
+// Populates buf with a string representing the given memblock's data,
+// plus the data of any subsequent MemBlocks extending it.
+// Returns: The size of the data at buf.
 size_t memblock_getdata(FSHandle *fs, MemHead *memhead, char *buf) {
     MemHead *memblock = (MemHead*) memhead;
     size_t total_sz = 0;
@@ -254,7 +229,7 @@ size_t memblock_getdata(FSHandle *fs, MemHead *memhead, char *buf) {
 
 // Sets the last access time for the given node to the current time.
 // If set_modified, also sets the last modified time to the current time.
-static void inode_set_lasttime(Inode *inode, int set_modified) {
+static void inode_setlasttime(Inode *inode, int set_modified) {
     if (!inode) return;  // Validate node
 
     struct timespec tspec;
@@ -307,6 +282,12 @@ static size_t inodes_numfree(FSHandle *fs) {
 void inode_set_fname(FSHandle *fs, Inode *inode, char *fname, size_t sz) {
     // TODO: Ensure valid fname
     strncpy(inode->fname, fname, sz); 
+}
+
+// Populates buf with a string representing the given inode's data.
+// Returns: The size of the data at buf.
+static size_t inode_getdata(FSHandle *fs, Inode *inode, char *buf) {
+    return memblock_getdata(fs, ptr_from_offset(fs, inode->offset_firstblk), buf);   
 }
 
 // Sets the data field and updates size fields for the file denoted by inode.
@@ -370,14 +351,46 @@ static int inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
         }
     }
 
-    inode_set_lasttime(inode, 1);
+    inode_setlasttime(inode, 1);
     inode->file_size_b = (size_t*) sz;
 
     return 1;
 }
 
+// Returns 1 iff fname is legal ascii chars and within max length, else 0.
+// Assumes: fname is null-terminated
+static int file_name_isvalid(char *fname) {
+    int len = 0;
+    int ord = 0;
+
+    for (char *c = fname; *c != '\0'; c++) {
+        ord = (int) *c;
+        if (ord < 32 || ord == 44 || ord  == 47 || ord > 122)
+            return 0;  // illegal ascii char found
+        len++;
+    }
+
+    if (len && len <= FNAME_MAXLEN)
+        return 1;
+    return 0;
+}
+
+// Creates a new file in the fs having the given properties.
+// Returns: A ptr to the newly created file's I-node.
+// Assumes: path and file name are null-terminated.
+static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t data_sz) {
+    // TODO: Ensure adequete room in fs
+    Inode *newfile_inode = inode_nextfree(fs);
+    // TODO: Validate fname
+    inode_set_fname(fs, newfile_inode, "fname", 7);
+    size_t offset_firstblk = offset_from_ptr(fs, (void*)memblock_nextfree(fs));
+    newfile_inode->offset_firstblk = (size_t*) offset_firstblk;
+    inode_setdata(fs, newfile_inode, data, data_sz);
+    return newfile_inode;
+}
+
 // Maps a filesystem of size fssize onto fsptr and returns a handle to it.
-static FSHandle* fs_get_handle(void *fsptr, size_t size) {
+static FSHandle* fs_gethandle(void *fsptr, size_t size) {
     if (size < MIN_FS_SZ_B) return NULL; // Ensure adequate size given
 
     // Map file system structure onto the given memory space
@@ -478,7 +491,7 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
     Inode *inode;   // Ptr to the inode for the given path
 
     // Bind fs to the filesystem
-    fs = fs_get_handle(fsptr, fssize);
+    fs = fs_gethandle(fsptr, fssize);
     if (!fs) {
         *errnoptr = EFAULT;
         return -1;  // Fail - bad fsptr or fssize given
@@ -816,7 +829,7 @@ void print_struct_debug() {
            bytes_to_kb(MEMBLOCK_SZ_B));
 }
 
-typedef long unsigned int lui;
+typedef long unsigned int lui; // Shorthand convenience
 
 // Print memory block stats
 void print_memblock_debug(FSHandle *fs, MemHead *memhead) {
@@ -844,7 +857,7 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
     printf("    offset_firstblk     : %lu\n", (lui)inode->offset_firstblk);  
     
     char *buf = malloc(1);
-    size_t sz = memblock_getdata(fs, ptr_from_offset(fs, inode->offset_firstblk), buf);
+    size_t sz = inode_getdata(fs, inode, buf);
     
     printf("    data size           : %lu\n", sz); 
     printf("    data                :\n");    
@@ -865,25 +878,6 @@ void print_fs_debug(FSHandle *fs) {
     // TODO: printf("Free space      : %lu bytes (%lu kb)\n", space_free(&fs), bytes_to_kb(space_free(&fs));
 }
 
-// Creates a new file in the fs having the given properties.
-// Returns: A ptr to the newly created file's I-node.
-// Assumes: path and file name are null-terminated.
-static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t data_sz) {
-    // Ensure adequete room in fs
-
-    Inode *newfile_inode = inode_nextfree(fs);
-    // TODO: Validate fname
-    inode_set_fname(fs, newfile_inode, "fname", 7);
-    size_t offset_firstblk = offset_from_ptr(fs, (void*)memblock_nextfree(fs));
-    newfile_inode->offset_firstblk = (size_t*) offset_firstblk;
-    inode_setdata(fs, newfile_inode, data, data_sz);
-    return newfile_inode;
-    }
-
-// TODO: static char* file_get_data(FSHandle *fs, const char *path) {
-// TODO: static dir_createnew(FSHandle *fs, const char *path, const char *dirname)
-// TODO: static char* inode_get_data
-
 
 int main() 
 {
@@ -899,7 +893,7 @@ int main()
     
     // Associate the filesys with a handle.
     printf("Creating filesystem...\n");
-    FSHandle *fs = fs_get_handle(fsptr, fssize);
+    FSHandle *fs = fs_gethandle(fsptr, fssize);
 
     printf("\n");
     print_fs_debug(fs);
