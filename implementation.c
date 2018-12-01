@@ -114,6 +114,7 @@ static int file_name_isvalid(char *fname);
 /* End Our Definitions ---------------------------------------------------- */
 /* Begin Our Utility helpers ---------------------------------------------- */
 
+
 // Returns a ptr to a mem address in the file system given an offset.
 static void* ptr_from_offset(FSHandle *fs, size_t *offset) {
     return (void*)((long unsigned int)fs + (size_t)offset);
@@ -129,6 +130,7 @@ static size_t offset_from_ptr(FSHandle *fs, void *ptr) {
 /* Begin Our Filesystem helpers ------------------------------------------- */
 
 
+// TODO: Inode* file_resolvepath(FSHandle *fs, const char *path) 
 // TODO: static char *file_getdata(FSHandle *fs, char *path, char *buf)
 // TODO: static dir_createnew(FSHandle *fs, const char *path, const char *dirname)
 
@@ -137,7 +139,6 @@ static size_t offset_from_ptr(FSHandle *fs, void *ptr) {
 static void* memblock_datafield(FSHandle *fs, MemHead *memblock){
     return (void*)(memblock + ST_SZ_MEMHEAD);
 }
-
 // Returns 1 if the given memory block is free, else returns 0.
 static int memblock_isfree(MemHead *memhead) {
     if (memhead->not_free == 0)
@@ -363,44 +364,17 @@ static int file_name_isvalid(char *fname) {
     int ord = 0;
 
     for (char *c = fname; *c != '\0'; c++) {
-        len++;
-
-        // Check for over max lenght
-        if (len > FNAME_MAXLEN)
-            return 0;
-
-        // Check for illegal chars
         ord = (int) *c;
         if (ord < 32 || ord == 44 || ord  == 47 || ord > 122)
-            return 0;  
+            return 0;  // illegal ascii char found
+        len++;
+
+        if (len > FNAME_MAXLEN)
+            return 0;
     }
 
     if (len)
         return 1;
-}
-
-static Inode* file_resolvepath(FSHandle *fs, const char *path) {
-    Inode *file_node = fs->inode_seg;  // first inode
-
-    // size_t path_len = str_len(path);    // path char count
-    // printf("len: %lu\n", path_len);
-
-    // Determine number of steps until file inode
-    char *dirname, *path_cpy, *tofree;
-    tofree = path_cpy = strdup(path);
-    int steps = 0;
-    // for (steps=0; s[steps]; s[steps]=='.' ? steps++ : *s++);  
-    
-    // Iterate each dir in step w/each inode to parse down to the file's inode
-    while (dirname = strsep(&path_cpy, FS_ROOTPATH)) {
-        printf("In dir: %s\n", dirname);
-
-        // if last step
-        //  return inode
-        // else 
-        //  inode = inode for next path chunk
-    }
-    free(tofree);
 }
 
 // Creates a new file in the fs having the given properties.
@@ -425,12 +399,7 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t
     inode->offset_firstblk = (size_t*)offset_firstblk;
     inode_setdata(fs, inode, data, data_sz);
     
-    // Update file's parent directory to include this file
-    Inode *parentdir_inode = file_resolvepath(fs, path);
-
-    // get inode to parent dir
-
-    // update inode data
+    // TODO: Update file's parent directory to include this file
 
     return inode;
 }
@@ -968,7 +937,6 @@ int main()
     printf("Examining file1 -\n");
     print_inode_debug(fs, file1);
 
-
     // File2 - a file of 2 or more memblocks
     size_t data_sz = (DATAFIELD_SZ_B * 1) + 10;  // Larger than 1 memblock
     char *lg_data = malloc(data_sz);
@@ -982,16 +950,11 @@ int main()
             *c = 'b';
     } // Build file2 data: a str of half a's, half b's, and terminated with a 'c'
 
-    Inode *file2 = file_new(fs, "/dir1", "file2", lg_data, data_sz);
+    Inode *file2 = file_new(fs, "/", "file2", lg_data, data_sz);
 
     printf("\nExamining file2 - ");
     print_inode_debug(fs, file2);
 
-    printf("\nTesting resolve path, file 1 - ");
-    Inode* testnode1 = file_resolvepath(fs, "/file1");
-
-    printf("\nTesting resolve path, file 2 - ");
-    Inode* testnode2 = file_resolvepath(fs, "/dir1/file2");
 
     /////////////////////////////////////////////////////////////////////////
     // Cleanup
