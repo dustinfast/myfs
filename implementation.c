@@ -536,7 +536,7 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     // Else, begin creating the new directory...
     Inode *newdir_inode = inode_nextfree(fs);
     MemHead *newdir_memblock = memblock_nextfree(fs);
-    newdir_inode->offset_firstblk = (size_t*)offset_from_ptr(fs, &newdir_memblock);
+    newdir_inode->offset_firstblk = (size_t*)offset_from_ptr(fs, (void*)newdir_memblock);  // TODO: I this is wrong
 
     if (newdir_inode == NULL || newdir_memblock == NULL) {
         printf("ERROR: Failed to get free inode or memblock while adding dir.\n");
@@ -544,7 +544,7 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     }
 
     // Get the new inode's offset
-    char offset_str[1000]; // TODO: sz should be based on fs->num_inodes
+    char offset_str[1000];      // TODO: sz should be based on fs->num_inodes
     size_t offset = offset_from_ptr(fs, newdir_inode);        // offset
     snprintf(offset_str, sizeof(offset_str), "%zu", offset);  // offset to str
 
@@ -572,8 +572,11 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     // printf("  New data to write: %s\n", data);
     // printf("  New data size: %lu\n", data_sz);
 
-    // Overwrite the parent dirs data with concatenation
-    inode_setdata(fs, inode, data, data_sz);
+    inode_setdata(fs, inode, data, data_sz);  // Overwrite parent dir's data w/new
+    // TODO: Update the parent dir's subdir count
+    // inode->subdirs = (int)inode->subdirs + 1;
+    // int dircount = inode->subdirs;
+    // printf(" Old dircount: %d\n", dircount);
 
     // Debug
     size_t data_sz2 = 0;
@@ -583,15 +586,10 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     free(data2);
     free(data);
     
-    // // Update the parent dir's properties
-    // inode->subdirs = (int)inode->subdirs + 1;
-    // int dircount = inode->subdirs;
-    // printf(" Old dircount: %d\n", dircount);
-
-    // // Set up the new dir's properties
-    // inode_set_fname(newdir_inode, dirname);
-    // newdir_inode->is_dir = (int*)1;
-    // inode_setdata(fs, newdir_inode, "", 0);
+    // Set up the new dir's properties
+    inode_set_fname(newdir_inode, dirname);
+    newdir_inode->is_dir = (int*)1;  // TODO: This is wrong
+    inode_setdata(fs, newdir_inode, "t", 1);  // TODO: Fails - offset_firstblock is wrong
 
     return newdir_inode;
 }
@@ -679,13 +677,13 @@ static FSHandle* fs_gethandle(void *fsptr, size_t size) {
 
         // Set up 0th inode as the root inode
         strncpy(fs->inode_seg->fname, FS_PATH_SEP, str_len(FS_PATH_SEP));
-        fs->inode_seg->is_dir = (int*) 1;
-        fs->inode_seg->subdirs = 0;
+        fs->inode_seg->is_dir = (int*) 1; // TODO: I don't think this is right
+        fs->inode_seg->subdirs = 0;       // TODO: This either
         fs->inode_seg->offset_firstblk = (size_t*) (memblocks_seg - fsptr);
         
         // Set up 0th memory block as the root directory
-        // inode_setdata(fs, fs->inode_seg, "", 0);
-        inode_setdata(fs, fs->inode_seg, "dir2:40\n", 8);  // debug
+        inode_setdata(fs, fs->inode_seg, "", 0);
+        // inode_setdata(fs, fs->inode_seg, "dir2:40\n", 8);  // debug
     } 
 
     // Otherwise, just update the handle info
@@ -1098,8 +1096,8 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
         return;
     }
 
-    // char *buf = malloc(1);
-    // size_t sz = inode_getdata(fs, inode, buf);
+    char *buf = malloc(1);
+    size_t sz = inode_getdata(fs, inode, buf);
     
     printf("Inode at %lu:\n", (lui)inode);
     printf("    offset              : %lu\n", (lui)offset_from_ptr(fs, inode));
@@ -1107,12 +1105,15 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
     printf("    is_dir              : %lu\n", (lui)inode->is_dir);
     printf("    subdirs             : %lu\n", (lui)inode->subdirs);
     printf("    file_size_b         : %lu\n", (lui)inode->file_size_b);
-    // printf("    last_acc            : %09ld\n", inode->last_acc->tv_sec);
-    // printf("    last_mod            : %09ld\n", inode->last_mod->tv_sec);
+    printf("    last_acc            : %09ld\n", inode->last_acc->tv_sec);
+    printf("    last_mod            : %09ld\n", inode->last_mod->tv_sec);
     printf("    offset_firstblk     : %lu\n", (lui)inode->offset_firstblk);  
-    // printf("    data size           : %lu\n", sz); 
-    // printf("    data                : %s\n", buf);    
-    }
+    printf("    data size           : %lu\n", sz); 
+    printf("    data                : %s\n", buf); 
+
+    // free(buf);  // TODO: This causes loss of data for subsequent calls
+}
+
 
 // Print filesystem sta ts
 void print_fs_debug(FSHandle *fs) {
@@ -1181,10 +1182,10 @@ int main()
     // // File1 - a file of a single memblock
     // Inode *file1 = file_new(fs, "/", "file1", "hello from file 1", 17);
 
-    // printf("Examining file1 (a single block file at /file1) -\n");
+    // // printf("Examining file1 (a single block file at /file1) -\n");
     // print_inode_debug(fs, file1);
 
-    // // File2 - a file of 2 or more memblocks
+    // // // File2 - a file of 2 or more memblocks
     // size_t data_sz = (DATAFIELD_SZ_B * 1) + 10;  // Larger than 1 memblock
     // char *lg_data = malloc(data_sz);
     // for (size_t i = 0; i < data_sz; i++) {
