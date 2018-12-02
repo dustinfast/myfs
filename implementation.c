@@ -325,7 +325,7 @@ static void inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     if (sz <= DATAFIELD_SZ_B) {
         void *data_field = memblock + ST_SZ_MEMHEAD;
         strncpy(data_field, data, sz);
-        memblock->not_free = (int*)1;
+        *(int*)(&memblock->not_free) = 1;
         memblock->data_size_b = (size_t*) sz;
         memblock->offset_nextblk = 0;
     }
@@ -356,8 +356,8 @@ static void inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
 
             // Write the bytes to the data field
             strncpy(ptr_writeto, data_idx, write_bytes);
-            memblock->not_free = (int*)1;
-            memblock->data_size_b = (size_t*)write_bytes;
+            *(int*)(&memblock->not_free) = 1;
+            *(size_t*)(&memblock->data_size_b) = write_bytes;
 
             // Update next block offsets as needed
             if (prev_block) 
@@ -536,7 +536,7 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     // Else, begin creating the new directory...
     Inode *newdir_inode = inode_nextfree(fs);
     MemHead *newdir_memblock = memblock_nextfree(fs);
-    newdir_inode->offset_firstblk = (size_t*)offset_from_ptr(fs, (void*)newdir_memblock);  // TODO: I this is wrong
+    newdir_inode->offset_firstblk = (size_t*)offset_from_ptr(fs, (void*)newdir_memblock);
 
     if (newdir_inode == NULL || newdir_memblock == NULL) {
         printf("ERROR: Failed to get free inode or memblock while adding dir.\n");
@@ -557,8 +557,8 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     data_sz += str_len(dirname) + str_len(offset_str) + 2; // +2 for : and \n
     
     //debug
-    printf("\n- Adding new dir: %s\n", dirname);
-    printf("  Parent data: %s\n", data);
+    // printf("\n- Adding new dir: %s\n", dirname);
+    // printf("  Parent data: %s\n", data);
 
     // Concatenate parent dir's data with new dir's data
     data = realloc(data, data_sz);
@@ -572,24 +572,22 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     // printf("  New data to write: %s\n", data);
     // printf("  New data size: %lu\n", data_sz);
 
-    inode_setdata(fs, inode, data, data_sz);  // Overwrite parent dir's data w/new
-    // TODO: Update the parent dir's subdir count
-    // inode->subdirs = (int)inode->subdirs + 1;
-    // int dircount = inode->subdirs;
-    // printf(" Old dircount: %d\n", dircount);
+    // Update parent dir properties
+    inode_setdata(fs, inode, data, data_sz);  // Overwrite parent dir's data
+    free(data);
+    *(int*)(&inode->subdirs) = *(int*)(&inode->subdirs) + 1;
 
     // Debug
-    size_t data_sz2 = 0;
-    char *data2 = malloc(1);
-    data_sz2 = inode_getdata(fs, inode, data2);
-    printf("  New parent data: %s\n", data2);
-    free(data2);
-    free(data);
+    // size_t data_sz2 = 0;
+    // char *data2 = malloc(1);
+    // data_sz2 = inode_getdata(fs, inode, data2);
+    // printf("  New parent data: %s\n", data2);
+    // free(data2);
     
-    // Set up the new dir's properties
+    // Set new dir's properties
     inode_set_fname(newdir_inode, dirname);
-    newdir_inode->is_dir = (int*)1;  // TODO: This is wrong
-    inode_setdata(fs, newdir_inode, "t", 1);  // TODO: Fails - offset_firstblock is wrong
+    *(int*)(&newdir_inode->is_dir) = 1;
+    inode_setdata(fs, newdir_inode, "", 0); 
 
     return newdir_inode;
 }
@@ -643,7 +641,7 @@ static FSHandle* fs_gethandle(void *fsptr, size_t size) {
     if (size < MIN_FS_SZ_B) return NULL; // Ensure adequate size given
 
     // Map file system structure onto the given memory space
-    FSHandle *fs = (FSHandle*) fsptr;
+    FSHandle *fs = (FSHandle*)fsptr;
 
     size_t fs_size = size - FS_START_OFFSET;    // Space available to fs
     void *segs_start = fsptr + FS_START_OFFSET; // Start of fs's segments
@@ -676,14 +674,16 @@ static FSHandle* fs_gethandle(void *fsptr, size_t size) {
         fs->mem_seg = (MemHead*) memblocks_seg;
 
         // Set up 0th inode as the root inode
-        strncpy(fs->inode_seg->fname, FS_PATH_SEP, str_len(FS_PATH_SEP));
-        fs->inode_seg->is_dir = (int*) 1; // TODO: I don't think this is right
-        fs->inode_seg->subdirs = 0;       // TODO: This either
+        Inode *root_inode = fs_get_rootinode(fs);
+        strncpy(root_inode->fname, FS_PATH_SEP, str_len(FS_PATH_SEP));
+        *(int*)(&root_inode->is_dir) = 1;
+        *(int*)(&root_inode->subdirs) = 0;
         fs->inode_seg->offset_firstblk = (size_t*) (memblocks_seg - fsptr);
+        inode_setdata(fs, fs->inode_seg, "", 1);
         
-        // Set up 0th memory block as the root directory
-        inode_setdata(fs, fs->inode_seg, "", 0);
-        // inode_setdata(fs, fs->inode_seg, "dir2:40\n", 8);  // debug
+        // debug
+        // *(size_t*)(&fs->inode_seg->offset_firstblk) = (memblocks_seg - fsptr);
+        // inode_setdata(fs, fs->inode_seg, "dir2:40\n", 8);
     } 
 
     // Otherwise, just update the handle info
@@ -1083,6 +1083,7 @@ typedef long unsigned int lui; // Shorthand convenience
 void print_memblock_debug(FSHandle *fs, MemHead *memhead) {
     printf("Memory block at %lu:\n", (lui)memhead);
     printf("    offset          : %lu\n", (lui)offset_from_ptr(fs, memhead));
+    printf("    not_free        : %lu\n", (lui)memhead->not_free);
     printf("    data_size_b     : %lu\n", (lui)memhead->data_size_b);
     printf("    offset_nextblk  : %lu\n", (lui)memhead->offset_nextblk);
     printf("    data            : %s\n",  (char*)(memhead + ST_SZ_MEMHEAD));
@@ -1157,51 +1158,47 @@ int main()
     printf("\nExamining root dir @ ");
     print_memblock_debug(fs, fs->mem_seg);
 
-    // Dir1 - A directory in the root dir 
+
+    /////////////////////////////////////////////////////////////////////////
+    // Begin test files/dirs
+    printf("\n\n---- Starting Test Files/Directories -----\n\n");
+
+     // Dir1 - A directory in the root dir 
+    // MemHead *dir1_memblock = memblock_nextfree(fs);
     Inode *dir1 = dir_new(fs, fs_get_rootinode(fs), "dir1");
 
     printf("Examining dir1 (a single dir at /dir1) -\n");
     print_inode_debug(fs, dir1);
 
-    printf("\nExamining root inode @ ");
-    print_inode_debug(fs, fs->inode_seg);
+    // printf("\nExamining dir1 memblock ");
+    // print_memblock_debug(fs, dir1_memblock);
 
-    printf("\nExamining root dir @ ");
-    print_memblock_debug(fs, fs->mem_seg);
+    // File1 - a file of a single memblock
+    Inode *file1 = file_new(fs, "/", "file1", "hello from file 1", 17);
 
-    // printf("\nExamining inode & memblock usage -\n");
-    // printf("    Is inode 0 free = %d\n", inode_isfree(fs->inode_seg));
-    // printf("    Is inode 1 free = %d\n", inode_isfree(fs->inode_seg + 1));
-    // printf("    Is memblock 0 free = %d\n", memblock_isfree(fs->mem_seg));
-    // printf("    Is memblock 1 free = %d\n", memblock_isfree(fs->mem_seg + 1));
+    printf("\nExamining file1 (a single block file at /file1) -\n");
+    print_inode_debug(fs, file1);
 
-    // /////////////////////////////////////////////////////////////////////////
-    // // Begin test files/dirs
-    // printf("\n\n---- Starting Test Files/Directories -----\n\n");
-
-    // // File1 - a file of a single memblock
-    // Inode *file1 = file_new(fs, "/", "file1", "hello from file 1", 17);
-
-    // // printf("Examining file1 (a single block file at /file1) -\n");
-    // print_inode_debug(fs, file1);
-
-    // // // File2 - a file of 2 or more memblocks
-    // size_t data_sz = (DATAFIELD_SZ_B * 1) + 10;  // Larger than 1 memblock
-    // char *lg_data = malloc(data_sz);
-    // for (size_t i = 0; i < data_sz; i++) {
-    //     char *c = lg_data + i;
-    //     if (i < data_sz / 2)
-    //         *c = 'a';
-    //     else if (i == data_sz - 1)
-    //         *c = 'c';
-    //     else
-    //         *c = 'b';
-    // } // Build file2 data: a str of half a's, half b's, and terminated with a 'c'
+    // // File2 - a file of 2 or more memblocks
+    size_t data_sz = (DATAFIELD_SZ_B * 1) + 10;  // Larger than 1 memblock
+    char *lg_data = malloc(data_sz);
+    for (size_t i = 0; i < data_sz; i++) {
+        char *c = lg_data + i;
+        if (i < data_sz / 2)
+            *c = 'a';
+        else if (i == data_sz - 1)
+            *c = 'c';
+        else
+            *c = 'b';
+    } // Build file2 data: a str of half a's, half b's, and terminated with a 'c'
     
-    // Inode *file2 = file_new(fs, "/dir1", "file2", lg_data, data_sz);
+    Inode *file2 = file_new(fs, "/dir1", "file2", lg_data, data_sz);
 
-    // printf("\nExamining file2 (a two-block file at /dir1/file2 -");
-    // print_inode_debug(fs, file2);
+    printf("\nExamining file2 (a two-block file at /dir1/file2 -");
+    print_inode_debug(fs, file2);
+
+    // printf("\nTesting resolve path, '/dir1' - ");
+    // Inode* testnode1 = file_resolvepath(fs, "/dir1");
 
     // printf("\nTesting resolve path, '/file1' - ");
     // Inode* testnode = file_resolvepath(fs, "/file1");
@@ -1212,8 +1209,6 @@ int main()
     // printf("\nTesting resolve path, '/' - ");
     // testnode = file_resolvepath(fs, "/");
     
-    // printf("\nTesting resolve path, '/dir1' - ");
-    // testnode = file_resolvepath(fs, "/dir1");
 
     // printf("\nTesting resolve path, '/dir1/' - ");
     // testnode = file_resolvepath(fs, "/dir1/");
