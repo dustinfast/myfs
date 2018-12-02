@@ -567,10 +567,10 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     strcat(data, offset_str);
     strcat(data, FS_DIRDATA_END);
 
-    // debug
-    printf("  Newdir inode offset: %lu\n", offset);
-    printf("  New data to write: %s\n", data);
-    printf("  New data size: %lu\n", data_sz);
+    // // debug
+    // printf("  Newdir inode offset: %lu\n", offset);
+    // printf("  New data to write: %s\n", data);
+    // printf("  New data size: %lu\n", data_sz);
 
     // Overwrite the parent dirs data with concatenation
     inode_setdata(fs, inode, data, data_sz);
@@ -584,7 +584,9 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     free(data);
     
     // // Update the parent dir's properties
-    // inode->subdirs++;
+    // inode->subdirs = (int)inode->subdirs + 1;
+    // int dircount = inode->subdirs;
+    // printf(" Old dircount: %d\n", dircount);
 
     // // Set up the new dir's properties
     // inode_set_fname(newdir_inode, dirname);
@@ -1092,7 +1094,7 @@ void print_memblock_debug(FSHandle *fs, MemHead *memhead) {
 void print_inode_debug(FSHandle *fs, Inode *inode) {
 
     if (inode == NULL) {
-        printf(    "FAIL: inode is NULL.\n");
+        printf("    FAIL: inode is NULL.\n");
         return;
     }
 
@@ -1105,8 +1107,8 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
     printf("    is_dir              : %lu\n", (lui)inode->is_dir);
     printf("    subdirs             : %lu\n", (lui)inode->subdirs);
     printf("    file_size_b         : %lu\n", (lui)inode->file_size_b);
-    printf("    last_acc            : %09ld\n", inode->last_acc->tv_sec);
-    printf("    last_mod            : %09ld\n", inode->last_mod->tv_sec);
+    // printf("    last_acc            : %09ld\n", inode->last_acc->tv_sec);
+    // printf("    last_mod            : %09ld\n", inode->last_mod->tv_sec);
     printf("    offset_firstblk     : %lu\n", (lui)inode->offset_firstblk);  
     // printf("    data size           : %lu\n", sz); 
     // printf("    data                : %s\n", buf);    
@@ -1158,7 +1160,7 @@ int main()
     Inode *dir1 = dir_new(fs, fs_get_rootinode(fs), "dir1");
 
     printf("Examining dir1 (a single dir at /dir1) -\n");
-    // print_inode_debug(fs, dir1);
+    print_inode_debug(fs, dir1);
 
     printf("\nExamining root inode @ ");
     print_inode_debug(fs, fs->inode_seg);
