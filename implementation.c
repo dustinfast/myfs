@@ -41,7 +41,6 @@
     |   MemHead    |         Data           |
     |______________|________________________|
 
-    # TODO: Add addtl docs to README.md
 
     Directory file data field structure:
         Ex: "dir1:offset\ndir2:offset\nfile1:offset"
@@ -1159,17 +1158,10 @@ int main()
     // Begin test files/dirs
     printf("\n\n---- Starting Test Files/Directories -----\n\n");
 
-     // Dir1 - A directory in the root dir 
-    // MemHead *dir1_memblock = memblock_nextfree(fs);
+     // Init Dir1 - A directory in the root dir 
     Inode *dir1 = dir_new(fs, fs_get_rootinode(fs), "dir1");
 
-    // printf("Examining dir1 (a single dir at /dir1) -\n");
-    // print_inode_debug(fs, dir1);
-
-    // printf("\nExamining dir1 memblock ");
-    // print_memblock_debug(fs, dir1_memblock);
-
-    // File1 - a file of a single memblock
+    // Init File1 - a file of a single memblock
     Inode *file1 = file_new(fs, "/", "file1", "hello from file 1", 17);
 
     printf("\nExamining file1 (a single block file at /file1) -\n");
@@ -1188,28 +1180,27 @@ int main()
             *c = 'b';
     }
     
-    // File2 - a file of 2 or more memblocks
+    // Init File2 - a file of 2 or more memblocks
     Inode *file2 = file_new(fs, "/dir1", "file2", lg_data, data_sz);
 
     printf("\nExamining file2 (a two-block file at /dir1/file2 -");
     print_inode_debug(fs, file2);
 
-    printf("\nTesting resolve path, '/dir1' - ");
-    Inode* testinode1 = file_resolvepath(fs, "/dir1/");
-    print_inode_debug(fs, testinode1);
+    printf("\nTesting resolve path, '/file1' - ");
+    Inode* testnode = file_resolvepath(fs, "/file1");
+
+    // printf("\nTesting resolve path, '/dir1' - ");
+    // Inode* testinode1 = file_resolvepath(fs, "/dir1/");
+    // print_inode_debug(fs, testinode1);
 
     // printf("\nTesting resolve path, '/dir1/' - ");
     // testinode1 = file_resolvepath(fs, "/dir1/");
     // print_inode_debug(fs, testinode1);
 
-    printf("\nTesting resolve path, '/file1' - ");
-    Inode* testnode = file_resolvepath(fs, "/file1");
 
     // printf("\nTesting resolve path, '/dir1/file2' - ");
     // testnode = file_resolvepath(fs, "/dir1/file2");
 
-    // printf("\nTesting resolve path, '/' - ");
-    // testnode = file_resolvepath(fs, "/");
     
 
 
