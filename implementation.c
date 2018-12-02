@@ -456,6 +456,32 @@ static Inode* file_resolvepath(FSHandle *fs, const char *path) {
     free(tofree);
 }
 
+
+// Creates a new, empy sub-directory under the the given inode.
+// Returns: 1 on success, else < 1, denoting the following:
+//       0 = Invalid parent dir
+//      -1 = Bad dir name
+//      -2 = Dir already exists
+// static int dir_new(FSHandle *fs, Inode *inode, const char *dirname) {
+//     if (!inode_isdir(inode)) {
+//         printf("ERROR: Attempted to add a directory to a non-dir inode.");
+//     } else if {
+//         (!file_name_isvalid(dirname))
+//         printf("ERROR: Attempted to add a directory with an invalid name.");
+//     }
+
+//     // Get the parent dir's list of files/dirs
+//     size_t data_sz = 0;
+//     char *curr_data = malloc(1);
+//     data_sz = inode_getdata(fs, inode, buf);
+
+//     // Check for an existing dir of this name
+//     printf("new dir: %s\n", buf);
+
+//     // inode->num_subdirs++;
+
+// }
+
 // Creates a new file in the fs having the given properties.
 // Note: path is parent dir path, fname is the file name
 // Returns: A ptr to the newly created file's I-node (or NULL on fail)
@@ -481,10 +507,8 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t
     
     // Update file's parent directory to include this file
     Inode *parentdir_inode = file_resolvepath(fs, path);
+    //TODO: update parent inode dir data
 
-    // get inode to parent dir
-
-    // update inode data
 
     return inode;
 }
