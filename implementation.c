@@ -46,6 +46,8 @@
     Design Decisions:
         Assume a single process accessing the fs at a time?
         To begin writing data before checking fs has enough room?
+        Assume only absolute paths passed to 13 funcs?
+        Filename and path chars to allow.
 
 
 /* End File System Documentation ------------------------------------------ */
@@ -285,6 +287,14 @@ int inode_set_fname(FSHandle *fs, Inode *inode, char *fname) {
     return 1;
 }
 
+// Returns 1 if the given inode is for a directory, else 0
+static int inode_isdir(Inode *inode) {
+    if (*inode->is_dir == 0)
+        return 0;
+    else
+        return 1;
+}
+
 // Populates buf with a string representing the given inode's data.
 // Returns: The size of the data at buf.
 static size_t inode_getdata(FSHandle *fs, Inode *inode, char *buf) {
@@ -369,9 +379,9 @@ static int file_name_isvalid(char *fname) {
         if (len > FNAME_MAXLEN)
             return 0;
 
-        // Check for illegal chars
+        // Check for illegal chars ({, }, |, ~, DEL, ,, /, and :)
         ord = (int) *c;
-        if (ord < 32 || ord == 44 || ord  == 47 || ord > 122)
+        if (ord < 32 || ord == 44 || ord  == 47 || ord == 58 || ord > 122)
             return 0;  
     }
 
@@ -379,31 +389,75 @@ static int file_name_isvalid(char *fname) {
         return 1;
 }
 
+// Given a directory or file path, returns the inode for that file or dir,
+// or NULL on fail.
 static Inode* file_resolvepath(FSHandle *fs, const char *path) {
-    Inode *file_node = fs->inode_seg;  // first inode
-
     // size_t path_len = str_len(path);    // path char count
     // printf("len: %lu\n", path_len);
 
-    // Determine number of steps until file inode
-    char *dirname, *path_cpy, *tofree;
-    tofree = path_cpy = strdup(path);
-    int steps = 0;
-    // for (steps=0; s[steps]; s[steps]=='.' ? steps++ : *s++);  
-    
-    // Iterate each dir in step w/each inode to parse down to the file's inode
-    while (dirname = strsep(&path_cpy, FS_ROOTPATH)) {
-        printf("In dir: %s\n", dirname);
+    Inode *curr_inode = fs->inode_seg;  // Filesystem's first/root inode
 
-        // if last step
-        //  return inode
-        // else 
-        //  inode = inode for next path chunk
+    // If request is for root (most common case), just return the first inode
+    if (path == FS_ROOTPATH) 
+        return curr_inode;
+
+    // Else, start iterating each "token" in the path to parse down to the
+    // inode. Ex: /dir1/file1 consists of two tokens, "dir1" and "file1".
+    char *curr_fname, *path_cpy1, *path_cpy2, *tofree;
+    tofree = path_cpy1 = path_cpy2 = strdup(path);  // Path working copies
+    
+    // Determine num steps in the path, so we know when to look for last inode
+    int steps = -1;
+    for (char *t = path_cpy1; *t != '\0'; t++)
+        if (*t == *FS_ROOTPATH)
+            steps++;
+
+    if (steps < 0) {
+        printf("ERROR: Invalid path received.");  // debug
+        return NULL;
+    }
+
+    // Debug
+    printf("\n- Resolving path: %s\n", path);
+    printf("Steps: %d\n", steps);
+
+    Inode *prev_inode = NULL;   // For handling paths ending in '/'
+
+    path_cpy2++;  // Move past leading '/' char in path
+    curr_inode++; // Move past root inode
+    while (curr_fname = strsep(&path_cpy2, FS_ROOTPATH)) {
+        // If we're at a trailing '/', return the previous inode if its a dir
+        if (curr_fname == FS_ROOTPATH) {
+            printf("RETURNING1: %s at step %d\n", prev_inode->fname, steps);  // debug
+            return prev_inode;
+        }
+
+        printf("In dir: '%s' at step %d\n", curr_fname, steps); // debug
+
+        // If steps is 0, ensure node is for the requested fname and return
+        if (steps == 0) {
+            if (*curr_inode->fname == *curr_fname) {
+                printf("RETURNING2: %s at step %d\n", curr_fname, steps);  // debug
+                return curr_inode;
+            } else {
+                printf("FAILED2: '%s' at step %d != '%s'\n", curr_fname, steps, curr_inode->fname);  // debug
+                return NULL;
+            }
+        }
+
+        // Else, get the inode for the current token and ensure it's correct
+        
+        prev_inode = curr_inode;
+        curr_inode++;
+
+        steps--;
+        
     }
     free(tofree);
 }
 
 // Creates a new file in the fs having the given properties.
+// Note: path is parent dir path, fname is the file name
 // Returns: A ptr to the newly created file's I-node (or NULL on fail)
 static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t data_sz) {
     if (memblocks_numfree(fs) <  data_sz / DATAFIELD_SZ_B)
@@ -968,7 +1022,6 @@ int main()
     printf("Examining file1 -\n");
     print_inode_debug(fs, file1);
 
-
     // File2 - a file of 2 or more memblocks
     size_t data_sz = (DATAFIELD_SZ_B * 1) + 10;  // Larger than 1 memblock
     char *lg_data = malloc(data_sz);
@@ -987,11 +1040,20 @@ int main()
     printf("\nExamining file2 - ");
     print_inode_debug(fs, file2);
 
-    printf("\nTesting resolve path, file 1 - ");
-    Inode* testnode1 = file_resolvepath(fs, "/file1");
+    printf("\nTesting resolve path, '/file1' - ");
+    Inode* testnode = file_resolvepath(fs, "/file1");
 
-    printf("\nTesting resolve path, file 2 - ");
-    Inode* testnode2 = file_resolvepath(fs, "/dir1/file2");
+    printf("\nTesting resolve path, '/dir1/file2' - ");
+    testnode = file_resolvepath(fs, "/dir1/file2");
+
+    printf("\nTesting resolve path, '/' - ");
+    testnode = file_resolvepath(fs, "/");
+    
+    printf("\nTesting resolve path, '/dir1' - ");
+    testnode = file_resolvepath(fs, "/dir1");
+
+    printf("\nTesting resolve path, '/dir1/' - ");
+    testnode = file_resolvepath(fs, "/dir1/");
 
     /////////////////////////////////////////////////////////////////////////
     // Cleanup
