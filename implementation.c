@@ -1107,11 +1107,11 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
     printf("    data size           : %lu\n", sz); 
     printf("    data                : %s\n", buf); 
 
-    // free(buf);  // TODO: This causes loss of data for subsequent calls
+    // free(buf);  // TODO: This causes crazieness
 }
 
 
-// Print filesystem sta ts
+// Print filesystem stats
 void print_fs_debug(FSHandle *fs) {
     printf("File system properties: \n");
     printf("    fs (fsptr)      : %lu\n", (lui)fs);
@@ -1125,10 +1125,10 @@ void print_fs_debug(FSHandle *fs) {
     printf("    Free space      : %lu bytes (%lu kb)\n", fs_freespace(fs), bytes_to_kb(fs_freespace(fs)));
 }
 
+
+
 int main() 
 {
-    /////////////////////////////////////////////////////////////////////////
-    // Print welcome & struct size details
     printf("------------- File System Test Space -------------\n");
     printf("--------------------------------------------------\n\n");
     print_struct_debug();
@@ -1153,7 +1153,6 @@ int main()
     printf("\nExamining root dir @ ");
     print_memblock_debug(fs, fs->mem_seg);
 
-
     /////////////////////////////////////////////////////////////////////////
     // Begin test files/dirs
     printf("\n\n---- Starting Test Files/Directories -----\n\n");
@@ -1164,7 +1163,7 @@ int main()
     // Init File1 - a file of a single memblock
     Inode *file1 = file_new(fs, "/", "file1", "hello from file 1", 17);
 
-    printf("\nExamining file1 (a single block file at /file1) -\n");
+    printf("\nExamining file1 @ /file1 -\n");
     print_inode_debug(fs, file1);
 
     // Build file2 data: a str of half a's, half b's, and terminated with a 'c'
@@ -1183,7 +1182,7 @@ int main()
     // Init File2 - a file of 2 or more memblocks
     Inode *file2 = file_new(fs, "/dir1", "file2", lg_data, data_sz);
 
-    printf("\nExamining file2 (a two-block file at /dir1/file2 -");
+    printf("\nExamining file2 @ /dir1/file2 -\n");
     print_inode_debug(fs, file2);
 
     printf("\nTesting resolve path, '/file1' - ");
@@ -1200,9 +1199,6 @@ int main()
 
     // printf("\nTesting resolve path, '/dir1/file2' - ");
     // testnode = file_resolvepath(fs, "/dir1/file2");
-
-    
-
 
     /////////////////////////////////////////////////////////////////////////
     // Cleanup
