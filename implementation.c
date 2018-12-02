@@ -43,6 +43,10 @@
 
     # TODO: Add addtl docs to README.md
 
+    Directory file data field structure:
+        Ex: "dir1:offset\ndir2:offset\nfile1:offset"
+        Ex: "file1:offset\nfile2:offset"
+
     Design Decisions:
         Assume a single process accessing the fs at a time?
         To begin writing data before checking fs has enough room?
@@ -53,7 +57,9 @@
 /* End File System Documentation ------------------------------------------ */
 /* Begin Our Definitions -------------------------------------------------- */
 
-#define FS_ROOTPATH ("/")                   // File system's root path
+#define FS_PATH_SEP ("/")                   // File system's path seperator
+#define FS_DIRDATA_SEP (":")                // Dir data name/offset seperator
+#define FS_DIRDATA_END ("\n")               // Dir data name/offset end char
 #define FS_BLOCK_SZ_KB (.5)                 // Total kbs of each memory block
 #define FNAME_MAXLEN (256)                  // Max length of any filename
 #define BLOCKS_TO_INODES (1)                // Num of mem blocks to each inode
@@ -112,6 +118,7 @@ typedef struct FSHandle {
 
 // Function prototypes
 static int file_name_isvalid(char *fname);
+static Inode* fs_get_rootinode(FSHandle *fs);
 
 /* End Our Definitions ---------------------------------------------------- */
 /* Begin Our Utility helpers ---------------------------------------------- */
@@ -366,7 +373,6 @@ static void inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     inode->file_size_b = (size_t*) sz;
 }
 
-
 // Returns 1 iff fname is legal ascii chars and within max length, else 0.
 static int file_name_isvalid(char *fname) {
     int len = 0;
@@ -398,7 +404,7 @@ static Inode* file_resolvepath(FSHandle *fs, const char *path) {
     Inode *curr_inode = fs->inode_seg;  // Filesystem's first/root inode
 
     // If request is for root (most common case), just return the first inode
-    if (path == FS_ROOTPATH) 
+    if (path == FS_PATH_SEP) 
         return curr_inode;
 
     // Else, start iterating each "token" in the path to parse down to the
@@ -409,7 +415,7 @@ static Inode* file_resolvepath(FSHandle *fs, const char *path) {
     // Determine num steps in the path, so we know when to look for last inode
     int steps = -1;
     for (char *t = path_cpy1; *t != '\0'; t++)
-        if (*t == *FS_ROOTPATH)
+        if (*t == *FS_PATH_SEP)
             steps++;
 
     if (steps < 0) {
@@ -425,14 +431,14 @@ static Inode* file_resolvepath(FSHandle *fs, const char *path) {
 
     path_cpy2++;  // Move past leading '/' char in path
     curr_inode++; // Move past root inode
-    while (curr_fname = strsep(&path_cpy2, FS_ROOTPATH)) {
+    while (curr_fname = strsep(&path_cpy2, FS_PATH_SEP)) {
         // If we're at a trailing '/', return the previous inode if its a dir
-        if (curr_fname == FS_ROOTPATH) {
+        if (curr_fname == FS_PATH_SEP) {
             printf("RETURNING1: %s at step %d\n", prev_inode->fname, steps);  // debug
             return prev_inode;
         }
 
-        printf("In dir: '%s' at step %d\n", curr_fname, steps); // debug
+        printf("In dir: '%s' at step %d\n", curr_fname, steps);  // debug
 
         // If steps is 0, ensure node is for the requested fname and return
         if (steps == 0) {
@@ -456,31 +462,81 @@ static Inode* file_resolvepath(FSHandle *fs, const char *path) {
     free(tofree);
 }
 
+// Returns the inode for the given sub-directory name having parent dir inode.
+// Or NULL if sub-directory could not be found.
+static Inode* dir_getsubdir(FSHandle *fs, Inode *inode, char *subdirname) {
+    size_t data_sz = 0;
+    char *curr_data = malloc(1);
+    data_sz = inode_getdata(fs, inode, curr_data);
 
-// Creates a new, empy sub-directory under the the given inode.
-// Returns: 1 on success, else < 1, denoting the following:
-//       0 = Invalid parent dir
-//      -1 = Bad dir name
-//      -2 = Dir already exists
-// static int dir_new(FSHandle *fs, Inode *inode, const char *dirname) {
-//     if (!inode_isdir(inode)) {
-//         printf("ERROR: Attempted to add a directory to a non-dir inode.");
-//     } else if {
-//         (!file_name_isvalid(dirname))
-//         printf("ERROR: Attempted to add a directory with an invalid name.");
-//     }
+    // Get ptr to the dir data for the requested subdir.
+    char *subdir_ptr = strstr(curr_data, subdirname);
 
-//     // Get the parent dir's list of files/dirs
-//     size_t data_sz = 0;
-//     char *curr_data = malloc(1);
-//     data_sz = inode_getdata(fs, inode, buf);
+    // If subdir does not exist, return NULL
+    if(subdir_ptr == NULL) {
+        printf("INFO: Subdir %s does not exist.\n", subdirname); // debug
+        free(curr_data);
+        return NULL;
+    }
+    else { printf("INFO: Subdir %s exists.\n", subdirname); } // debug
 
-//     // Check for an existing dir of this name
-//     printf("new dir: %s\n", buf);
+    // Else, extract the subdir's inode offset
+    char *offset_ptr = strstr(subdir_ptr, FS_DIRDATA_SEP);
+    char *offsetend_ptr = strstr(subdir_ptr, FS_DIRDATA_END);
 
-//     // inode->num_subdirs++;
+    if (!offset_ptr || !offsetend_ptr) {
+        printf("ERROR: Failed parsing dir data.\n");
+        free(curr_data);
+        return NULL;
+    }
 
-// }
+    size_t offset;
+    size_t offset_sz = offsetend_ptr - offset_ptr;
+    char *offset_str = malloc(offset_sz);
+    strncpy(offset_str, offset_ptr + 1, offset_sz - 1);  // +/- 1 to exclude sep
+    sscanf(offset_str, "%zu", &offset); // Convert offset from str to size_t
+
+
+    // Get the inode's ptr and validate it
+    Inode *subdir_inode = (Inode*)ptr_from_offset(fs, &offset);
+
+    // printf("Subdir Offset: %lu\n", offset);  // debug
+    // printf("Returning subdir w/name: %s\n", inode->fname); // debug
+
+    free(curr_data);
+    free(offset_str);
+}
+
+// Creates a new/empty  sub-directory under the parent dir specified by inode.
+// Returns: 1 on success, else < 0, denoting the following:
+//      -1 = Invalid parent dir
+//      -2 = Bad dir name
+//      -3 = Dir already exists
+static int dir_new(FSHandle *fs, Inode *inode, char *dirname) {
+    // TODO:
+    // if (!inode_isdir(inode)) {
+    //     printf("ERROR: Attempted to add a directory to a non-dir inode.");
+    //     return -1;
+    // } else if (!file_name_isvalid(dirname)) {
+    //         printf("ERROR: Attempted to add a directory with an invalid name.");
+    //         return -2;
+    // }
+
+    // Get the parent dir's list of files/dirs
+    size_t data_sz = 0;
+    char *curr_data = malloc(1);
+    data_sz = inode_getdata(fs, inode, curr_data);
+
+    // Check for an existing dir of this name
+    if(dir_getsubdir(fs, inode, dirname)) {
+        printf("ERROR: Attempted to add a directory with an invalid name.");
+        return -3;
+    }
+
+    printf("\n- Adding new dir: %s\n", dirname);
+    printf("Parent data: %s\n", curr_data);
+
+}
 
 // Creates a new file in the fs having the given properties.
 // Note: path is parent dir path, fname is the file name
@@ -489,7 +545,7 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t
     if (memblocks_numfree(fs) <  data_sz / DATAFIELD_SZ_B)
         return NULL;  // Insufficient room in fs to accomodate data
 
-    Inode *inode = inode_nextfree(fs); // File's inode
+    Inode *inode = inode_nextfree(fs); // New file's inode
     if (!inode)
         return NULL;  // Could not find a free inode
 
@@ -518,6 +574,11 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t
 static size_t fs_freespace(FSHandle *fs) {
     size_t num_memblocks = memblocks_numfree(fs);
     return num_memblocks * DATAFIELD_SZ_B;
+}
+
+// Returns the root director inode for the given file system.
+static Inode* fs_get_rootinode(FSHandle *fs) {
+    return fs->inode_seg;
 }
 
 // Maps a filesystem of size fssize onto fsptr and returns a handle to it.
@@ -558,14 +619,14 @@ static FSHandle* fs_gethandle(void *fsptr, size_t size) {
         fs->mem_seg = (MemHead*) memblocks_seg;
 
         // Set up 0th inode as the root inode
-        strncpy(fs->inode_seg->fname, FS_ROOTPATH, str_len(FS_ROOTPATH));
+        strncpy(fs->inode_seg->fname, FS_PATH_SEP, str_len(FS_PATH_SEP));
         fs->inode_seg->is_dir = (int*) 1;
         fs->inode_seg->subdirs = 0;
         fs->inode_seg->offset_firstblk = (size_t*) (memblocks_seg - fsptr);
         
         // Set up 0th memory block as the root directory
-        // TODO: Write root dir table
-        inode_setdata(fs, fs->inode_seg, "", 0);  // debug
+        // inode_setdata(fs, fs->inode_seg, "", 0);
+        inode_setdata(fs, fs->inode_seg, "dir1:40\n", 8);  // debug
     } 
 
     // Otherwise, just update the handle info
@@ -977,6 +1038,7 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
     size_t sz = inode_getdata(fs, inode, buf);
     
     printf("Inode at %lu:\n", (lui)inode);
+    printf("    offset              : %lu\n", (lui)offset_from_ptr(fs, inode));
     printf("    fname               : %s\n", inode->fname);
     printf("    is_dir              : %lu\n", (lui)inode->is_dir);
     printf("    subdirs             : %lu\n", (lui)inode->subdirs);
@@ -1043,7 +1105,7 @@ int main()
     // File1 - a file of a single memblock
     Inode *file1 = file_new(fs, "/", "file1", "hello from file 1", 17);
 
-    printf("Examining file1 -\n");
+    printf("Examining file1 (a single block file at /file1) -\n");
     print_inode_debug(fs, file1);
 
     // File2 - a file of 2 or more memblocks
@@ -1059,25 +1121,26 @@ int main()
             *c = 'b';
     } // Build file2 data: a str of half a's, half b's, and terminated with a 'c'
 
+    // int r = dir_new(fs, fs_get_rootinode(fs), "dir1");
     Inode *file2 = file_new(fs, "/dir1", "file2", lg_data, data_sz);
 
-    printf("\nExamining file2 - ");
+    printf("\nExamining file2 (a two-block file at /dir1/file2 -");
     print_inode_debug(fs, file2);
 
-    printf("\nTesting resolve path, '/file1' - ");
-    Inode* testnode = file_resolvepath(fs, "/file1");
+    // printf("\nTesting resolve path, '/file1' - ");
+    // Inode* testnode = file_resolvepath(fs, "/file1");
 
-    printf("\nTesting resolve path, '/dir1/file2' - ");
-    testnode = file_resolvepath(fs, "/dir1/file2");
+    // printf("\nTesting resolve path, '/dir1/file2' - ");
+    // testnode = file_resolvepath(fs, "/dir1/file2");
 
-    printf("\nTesting resolve path, '/' - ");
-    testnode = file_resolvepath(fs, "/");
+    // printf("\nTesting resolve path, '/' - ");
+    // testnode = file_resolvepath(fs, "/");
     
-    printf("\nTesting resolve path, '/dir1' - ");
-    testnode = file_resolvepath(fs, "/dir1");
+    // printf("\nTesting resolve path, '/dir1' - ");
+    // testnode = file_resolvepath(fs, "/dir1");
 
-    printf("\nTesting resolve path, '/dir1/' - ");
-    testnode = file_resolvepath(fs, "/dir1/");
+    // printf("\nTesting resolve path, '/dir1/' - ");
+    // testnode = file_resolvepath(fs, "/dir1/");
 
     /////////////////////////////////////////////////////////////////////////
     // Cleanup
