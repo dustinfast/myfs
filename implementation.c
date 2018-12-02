@@ -123,6 +123,9 @@ static Inode* fs_get_rootinode(FSHandle *fs);
 /* End Our Definitions ---------------------------------------------------- */
 /* Begin Our Utility helpers ---------------------------------------------- */
 
+
+// TODO: Move helpers to lib and just have main interface in this file
+
 // Returns a ptr to a mem address in the file system given an offset.
 static void* ptr_from_offset(FSHandle *fs, size_t *offset) {
     return (void*)((long unsigned int)fs + (size_t)offset);
@@ -139,8 +142,6 @@ static size_t offset_from_ptr(FSHandle *fs, void *ptr) {
 
 
 // TODO: static char *file_getdata(FSHandle *fs, char *path, char *buf)
-// TODO: static dir_createnew(FSHandle *fs, const char *path, const char *dirname)
-
 
 // Returns a ptr to a memory block's data field.
 static void* memblock_datafield(FSHandle *fs, MemHead *memblock){
@@ -286,7 +287,7 @@ static size_t inodes_numfree(FSHandle *fs) {
 
 // Sets the file or directory name (of length sz) for the given inode.
 // Returns: 1 on success, else 0 (likely due to invalid filename)
-int inode_set_fname(FSHandle *fs, Inode *inode, char *fname) {
+int inode_set_fname(Inode *inode, char *fname) {
     if (!file_name_isvalid(fname))
         return 0;
 
@@ -314,8 +315,10 @@ static size_t inode_getdata(FSHandle *fs, Inode *inode, char *buf) {
 // Returns: 1 on success, else 0. A 0 likely denotes a full file system.
 // Assumes: Filesystem has enough free memblocks to accomodate data.
 // Assumes: inode has its offset_firstblk set.
-// Assumes: inode has not previously had data assigned to it.
+// Note: Do not call on an inode w/data assigned to it, memblocks will be lost.
 static void inode_setdata(FSHandle *fs, Inode *inode, char *data, size_t sz) {
+    //TODO: If inode has existing data, format and release them (see note above)
+
     MemHead *memblock = ptr_from_offset(fs, inode->offset_firstblk);
 
     // Use a single block if sz will fit in one
@@ -385,7 +388,7 @@ static int file_name_isvalid(char *fname) {
         if (len > FNAME_MAXLEN)
             return 0;
 
-        // Check for illegal chars ({, }, |, ~, DEL, ,, /, and :)
+        // Check for illegal chars ({, }, |, ~, DEL, :, /, and comma char)
         ord = (int) *c;
         if (ord < 32 || ord == 44 || ord  == 47 || ord == 58 || ord > 122)
             return 0;  
@@ -428,11 +431,11 @@ static Inode* file_resolvepath(FSHandle *fs, const char *path) {
     printf("Steps: %d\n", steps);
 
     Inode *prev_inode = NULL;   // For handling paths ending in '/'
-
     path_cpy2++;  // Move past leading '/' char in path
     curr_inode++; // Move past root inode
+
     while (curr_fname = strsep(&path_cpy2, FS_PATH_SEP)) {
-        // If we're at a trailing '/', return the previous inode if its a dir
+        // If we're at a trailing sep, return the previous inode if its a dir
         if (curr_fname == FS_PATH_SEP) {
             printf("RETURNING1: %s at step %d\n", prev_inode->fname, steps);  // debug
             return prev_inode;
@@ -451,7 +454,7 @@ static Inode* file_resolvepath(FSHandle *fs, const char *path) {
             }
         }
 
-        // Else, get the inode for the current token and ensure it's correct
+        // TODO: Else, get the inode for the current token and ensure it's correct
         
         prev_inode = curr_inode;
         curr_inode++;
@@ -465,6 +468,7 @@ static Inode* file_resolvepath(FSHandle *fs, const char *path) {
 // Returns the inode for the given sub-directory name having parent dir inode.
 // Or NULL if sub-directory could not be found.
 static Inode* dir_getsubdir(FSHandle *fs, Inode *inode, char *subdirname) {
+    // Get parent dirs data
     size_t data_sz = 0;
     char *curr_data = malloc(1);
     data_sz = inode_getdata(fs, inode, curr_data);
@@ -474,18 +478,19 @@ static Inode* dir_getsubdir(FSHandle *fs, Inode *inode, char *subdirname) {
 
     // If subdir does not exist, return NULL
     if(subdir_ptr == NULL) {
-        printf("INFO: Subdir %s does not exist.\n", subdirname); // debug
+        // printf("INFO: Subdir %s does not exist.\n", subdirname); // debug
         free(curr_data);
         return NULL;
     }
-    else { printf("INFO: Subdir %s exists.\n", subdirname); } // debug
+
+    // else { printf("INFO: Subdir %s exists.\n", subdirname); } // debug
 
     // Else, extract the subdir's inode offset
     char *offset_ptr = strstr(subdir_ptr, FS_DIRDATA_SEP);
     char *offsetend_ptr = strstr(subdir_ptr, FS_DIRDATA_END);
 
     if (!offset_ptr || !offsetend_ptr) {
-        printf("ERROR: Failed parsing dir data.\n");
+        printf("ERROR: Parse fail - Dir data may be corrupt.\n");
         free(curr_data);
         return NULL;
     }
@@ -496,51 +501,102 @@ static Inode* dir_getsubdir(FSHandle *fs, Inode *inode, char *subdirname) {
     strncpy(offset_str, offset_ptr + 1, offset_sz - 1);  // +/- 1 to exclude sep
     sscanf(offset_str, "%zu", &offset); // Convert offset from str to size_t
 
-
     // Get the inode's ptr and validate it
     Inode *subdir_inode = (Inode*)ptr_from_offset(fs, &offset);
 
-    // printf("Subdir Offset: %lu\n", offset);  // debug
-    // printf("Returning subdir w/name: %s\n", inode->fname); // debug
+    // debug
+    // printf("Subdir Offset: %lu\n", offset);
+    // printf("Returning subdir w/name: %s\n", inode->fname);
 
+    // Cleanup
     free(curr_data);
     free(offset_str);
+
+    return subdir_inode;
 }
 
-// Creates a new/empty  sub-directory under the parent dir specified by inode.
-// Returns: 1 on success, else < 0, denoting the following:
-//      -1 = Invalid parent dir
-//      -2 = Bad dir name
-//      -3 = Dir already exists
-static int dir_new(FSHandle *fs, Inode *inode, char *dirname) {
+// Creates a new/empty sub-directory under the parent dir specified by inode.
+// Returns: A ptr to the newly created dirs inode, else NULL.
+static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     // TODO:
     // if (!inode_isdir(inode)) {
     //     printf("ERROR: Attempted to add a directory to a non-dir inode.");
-    //     return -1;
+    //     return NULL;
     // } else if (!file_name_isvalid(dirname)) {
     //         printf("ERROR: Attempted to add a directory with an invalid name.");
-    //         return -2;
-    // }
+    //         return NULL;
+    // }  // Note: must be done even though its done by inode_set_fname later
+
+    // If a dir of this name already exists
+    if(dir_getsubdir(fs, inode, dirname) != NULL) {
+        printf("ERROR: Attempted to add a directory that already exists.");
+        return NULL;
+    }
+
+    // Else, begin creating the new directory...
+    Inode *newdir_inode = inode_nextfree(fs);
+    MemHead *newdir_memblock = memblock_nextfree(fs);
+    newdir_inode->offset_firstblk = (size_t*)offset_from_ptr(fs, &newdir_memblock);
+
+    if (newdir_inode == NULL || newdir_memblock == NULL) {
+        printf("ERROR: Failed to get free inode or memblock while adding dir.\n");
+        return NULL;
+    }
+
+    // Get the new inode's offset
+    char offset_str[1000]; // TODO: sz should be based on fs->num_inodes
+    size_t offset = offset_from_ptr(fs, newdir_inode);        // offset
+    snprintf(offset_str, sizeof(offset_str), "%zu", offset);  // offset to str
 
     // Get the parent dir's list of files/dirs
     size_t data_sz = 0;
-    char *curr_data = malloc(1);
-    data_sz = inode_getdata(fs, inode, curr_data);
+    char *data = malloc(1);
+    data_sz = inode_getdata(fs, inode, data);
 
-    // Check for an existing dir of this name
-    if(dir_getsubdir(fs, inode, dirname)) {
-        printf("ERROR: Attempted to add a directory with an invalid name.");
-        return -3;
-    }
-
+    // Determine sz of data field after adding the new dir
+    data_sz += str_len(dirname) + str_len(offset_str) + 2; // +2 for : and \n
+    
+    //debug
     printf("\n- Adding new dir: %s\n", dirname);
-    printf("Parent data: %s\n", curr_data);
+    printf("  Parent data: %s\n", data);
 
+    // Concatenate parent dir's data with new dir's data
+    data = realloc(data, data_sz);
+    strcat(data, dirname);
+    strcat(data, FS_DIRDATA_SEP);
+    strcat(data, offset_str);
+    strcat(data, FS_DIRDATA_END);
+
+    // debug
+    printf("  Newdir inode offset: %lu\n", offset);
+    printf("  New data to write: %s\n", data);
+    printf("  New data size: %lu\n", data_sz);
+
+    // Overwrite the parent dirs data with concatenation
+    inode_setdata(fs, inode, data, data_sz);
+
+    // Debug
+    size_t data_sz2 = 0;
+    char *data2 = malloc(1);
+    data_sz2 = inode_getdata(fs, inode, data2);
+    printf("  New parent data: %s\n", data2);
+    free(data2);
+    free(data);
+    
+    // // Update the parent dir's properties
+    // inode->subdirs++;
+
+    // // Set up the new dir's properties
+    // inode_set_fname(newdir_inode, dirname);
+    // newdir_inode->is_dir = (int*)1;
+    // inode_setdata(fs, newdir_inode, "", 0);
+
+    return newdir_inode;
 }
 
 // Creates a new file in the fs having the given properties.
-// Note: path is parent dir path, fname is the file name
-// Returns: A ptr to the newly created file's I-node (or NULL on fail)
+// Note: path is parent dir path, fname is the file name. Ex: '/' and 'file1'.
+// Returns: A ptr to the newly created file's I-node (or NULL on fail).
 static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t data_sz) {
     if (memblocks_numfree(fs) <  data_sz / DATAFIELD_SZ_B)
         return NULL;  // Insufficient room in fs to accomodate data
@@ -553,7 +609,7 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t
     if (!memblock)
         return NULL;  // Could not find a free memblock
 
-    if (!inode_set_fname(fs, inode, fname))
+    if (!inode_set_fname(inode, fname))
         return NULL; // Invalid filename
     
     // Associate first memblock with the inode (by it's offset)
@@ -562,7 +618,8 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t
     inode_setdata(fs, inode, data, data_sz);
     
     // Update file's parent directory to include this file
-    Inode *parentdir_inode = file_resolvepath(fs, path);
+    // TOOD: Inode *parentdir_inode = file_resolvepath(fs, path);
+    // Inode *parentdir_inode = file_resolvepath(fs, path);
     //TODO: update parent inode dir data
 
 
@@ -626,7 +683,7 @@ static FSHandle* fs_gethandle(void *fsptr, size_t size) {
         
         // Set up 0th memory block as the root directory
         // inode_setdata(fs, fs->inode_seg, "", 0);
-        inode_setdata(fs, fs->inode_seg, "dir1:40\n", 8);  // debug
+        inode_setdata(fs, fs->inode_seg, "dir2:40\n", 8);  // debug
     } 
 
     // Otherwise, just update the handle info
@@ -1034,8 +1091,13 @@ void print_memblock_debug(FSHandle *fs, MemHead *memhead) {
 // Print inode stats
 void print_inode_debug(FSHandle *fs, Inode *inode) {
 
-    char *buf = malloc(1);
-    size_t sz = inode_getdata(fs, inode, buf);
+    if (inode == NULL) {
+        printf(    "FAIL: inode is NULL.\n");
+        return;
+    }
+
+    // char *buf = malloc(1);
+    // size_t sz = inode_getdata(fs, inode, buf);
     
     printf("Inode at %lu:\n", (lui)inode);
     printf("    offset              : %lu\n", (lui)offset_from_ptr(fs, inode));
@@ -1046,8 +1108,8 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
     printf("    last_acc            : %09ld\n", inode->last_acc->tv_sec);
     printf("    last_mod            : %09ld\n", inode->last_mod->tv_sec);
     printf("    offset_firstblk     : %lu\n", (lui)inode->offset_firstblk);  
-    printf("    data size           : %lu\n", sz); 
-    printf("    data                : %s\n", buf);    
+    // printf("    data size           : %lu\n", sz); 
+    // printf("    data                : %s\n", buf);    
     }
 
 // Print filesystem sta ts
@@ -1092,40 +1154,51 @@ int main()
     printf("\nExamining root dir @ ");
     print_memblock_debug(fs, fs->mem_seg);
 
-    printf("\nExamining inode & memblock usage -\n");
-    printf("    Is inode 0 free = %d\n", inode_isfree(fs->inode_seg));
-    printf("    Is inode 1 free = %d\n", inode_isfree(fs->inode_seg + 1));
-    printf("    Is memblock 0 free = %d\n", memblock_isfree(fs->mem_seg));
-    printf("    Is memblock 1 free = %d\n", memblock_isfree(fs->mem_seg + 1));
+    // Dir1 - A directory in the root dir 
+    Inode *dir1 = dir_new(fs, fs_get_rootinode(fs), "dir1");
 
-    /////////////////////////////////////////////////////////////////////////
-    // Begin memblock test files
-    printf("\n\n---- Starting Test Files -----\n\n");
+    printf("Examining dir1 (a single dir at /dir1) -\n");
+    // print_inode_debug(fs, dir1);
 
-    // File1 - a file of a single memblock
-    Inode *file1 = file_new(fs, "/", "file1", "hello from file 1", 17);
+    printf("\nExamining root inode @ ");
+    print_inode_debug(fs, fs->inode_seg);
 
-    printf("Examining file1 (a single block file at /file1) -\n");
-    print_inode_debug(fs, file1);
+    printf("\nExamining root dir @ ");
+    print_memblock_debug(fs, fs->mem_seg);
 
-    // File2 - a file of 2 or more memblocks
-    size_t data_sz = (DATAFIELD_SZ_B * 1) + 10;  // Larger than 1 memblock
-    char *lg_data = malloc(data_sz);
-    for (size_t i = 0; i < data_sz; i++) {
-        char *c = lg_data + i;
-        if (i < data_sz / 2)
-            *c = 'a';
-        else if (i == data_sz - 1)
-            *c = 'c';
-        else
-            *c = 'b';
-    } // Build file2 data: a str of half a's, half b's, and terminated with a 'c'
+    // printf("\nExamining inode & memblock usage -\n");
+    // printf("    Is inode 0 free = %d\n", inode_isfree(fs->inode_seg));
+    // printf("    Is inode 1 free = %d\n", inode_isfree(fs->inode_seg + 1));
+    // printf("    Is memblock 0 free = %d\n", memblock_isfree(fs->mem_seg));
+    // printf("    Is memblock 1 free = %d\n", memblock_isfree(fs->mem_seg + 1));
 
-    // int r = dir_new(fs, fs_get_rootinode(fs), "dir1");
-    Inode *file2 = file_new(fs, "/dir1", "file2", lg_data, data_sz);
+    // /////////////////////////////////////////////////////////////////////////
+    // // Begin test files/dirs
+    // printf("\n\n---- Starting Test Files/Directories -----\n\n");
 
-    printf("\nExamining file2 (a two-block file at /dir1/file2 -");
-    print_inode_debug(fs, file2);
+    // // File1 - a file of a single memblock
+    // Inode *file1 = file_new(fs, "/", "file1", "hello from file 1", 17);
+
+    // printf("Examining file1 (a single block file at /file1) -\n");
+    // print_inode_debug(fs, file1);
+
+    // // File2 - a file of 2 or more memblocks
+    // size_t data_sz = (DATAFIELD_SZ_B * 1) + 10;  // Larger than 1 memblock
+    // char *lg_data = malloc(data_sz);
+    // for (size_t i = 0; i < data_sz; i++) {
+    //     char *c = lg_data + i;
+    //     if (i < data_sz / 2)
+    //         *c = 'a';
+    //     else if (i == data_sz - 1)
+    //         *c = 'c';
+    //     else
+    //         *c = 'b';
+    // } // Build file2 data: a str of half a's, half b's, and terminated with a 'c'
+    
+    // Inode *file2 = file_new(fs, "/dir1", "file2", lg_data, data_sz);
+
+    // printf("\nExamining file2 (a two-block file at /dir1/file2 -");
+    // print_inode_debug(fs, file2);
 
     // printf("\nTesting resolve path, '/file1' - ");
     // Inode* testnode = file_resolvepath(fs, "/file1");
