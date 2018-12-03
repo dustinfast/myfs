@@ -398,63 +398,6 @@ static int file_name_isvalid(char *fname) {
         return 1;
 }
 
-// Given a directory or file path, returns the inode for that file or dir,
-// or NULL on fail.
-static Inode* file_resolvepath(FSHandle *fs, const char *path) {
-    Inode *curr_inode = fs->inode_seg;  // Filesystem's first/root inode
-
-    // If request is for root (most common case), just return the first inode
-    if (path == FS_PATH_SEP) 
-        return curr_inode;
-
-    // Else, start iterating each "token" in the path to parse down to the inode
-    // Ex: /dir1/file1 consists of two tokens, "dir1" and "file1"
-    // Ex: /dir1/dir2 consists of two tokens, "dir1" and "dir2"
-    // Ex: /dir1/dir2/ consists of two tokens, "dir1" and "dir2"
-    char *curr_fname, *path_cpy, *tofree;
-    tofree = path_cpy = strdup(path);  // Path working copies
-
-    // Exclude any trailing/leading seperators
-    path_cpy += str_len(path_cpy) - 1;
-    if (*path_cpy == '/')
-        *path_cpy = '\0';
-    path_cpy = tofree;
-    path_cpy++;
-    
-    // Determine num steps in the path, so we know when to look for last inode
-    int steps = 0;
-    for (char *t = path_cpy; *t != '\0'; t++)
-        if (*t == *FS_PATH_SEP)
-            steps++;
-
-    // Debug
-    printf("\n- Resolving path: %s\n", path_cpy);
-    printf("Steps: %d\n", steps);
-
-    while (curr_fname = strsep(&path_cpy, FS_PATH_SEP)) {
-        printf("With token: '%s' at step %d\n", curr_fname, steps);  // debug
-
-        // If steps is 0, get and return the sub inode from the curr inode
-        if (steps == 0) {
-            Inode *ret_node = dir_getsubitem(fs, curr_inode, curr_fname);
-            if (ret_node == NULL)
-                printf("Returning NULL\n");
-            else
-                printf("Returning: %s\n", ret_node->fname);
-
-            return ret_node;
-        }
-        // Else, look up the inode for the current subdir and setup next iter
-        curr_inode = dir_getsubitem(fs, curr_inode, curr_fname);
-        steps--;
-
-        if (curr_inode == NULL)
-            return NULL;   // Path not found
-        
-    }
-    free(tofree);
-}
-
 // Creates a new file in the fs having the given properties.
 // Note: path is parent dir path, fname is the file name. Ex: '/' and 'file1'.
 // Returns: A ptr to the newly created file's I-node (or NULL on fail).
@@ -484,9 +427,9 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t
     inode->offset_firstblk = (size_t*)offset_firstblk;
     inode_setdata(fs, inode, data, data_sz);
     
-    // Update file's parent directory to include this file
-    Inode *parentdir_inode = file_resolvepath(fs, path);
-    //TODO: update parent inode dir data
+    // TODO: Update file's parent directory to include this file
+    // TODO: as well as Update parent inode dir data, via
+    // TODO: Inode *parentdir_inode = file_resolvepath(fs, path);
 
     return inode;
 }
@@ -1105,7 +1048,8 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
     printf("    last_mod            : %09ld\n", inode->last_mod->tv_sec);
     printf("    offset_firstblk     : %lu\n", (lui)inode->offset_firstblk);  
     printf("    data size           : %lu\n", sz); 
-    printf("    data                : %s\n", buf); 
+    printf("    data                :\n"); 
+    write(fileno(stdout), buf, sz);
 
     // free(buf);  // TODO: This causes crazieness
 }
@@ -1147,24 +1091,9 @@ int main()
     printf("\n");
     print_fs_debug(fs);
 
-    printf("\nExamining root inode @ ");
-    print_inode_debug(fs, fs->inode_seg);
-
-    printf("\nExamining root dir @ ");
-    print_memblock_debug(fs, fs->mem_seg);
-
     /////////////////////////////////////////////////////////////////////////
     // Begin test files/dirs
     printf("\n\n---- Starting Test Files/Directories -----\n\n");
-
-     // Init Dir1 - A directory in the root dir 
-    Inode *dir1 = dir_new(fs, fs_get_rootinode(fs), "dir1");
-
-    // Init File1 - a file of a single memblock
-    Inode *file1 = file_new(fs, "/", "file1", "hello from file 1", 17);
-
-    printf("\nExamining file1 @ /file1 -\n");
-    print_inode_debug(fs, file1);
 
     // Build file2 data: a str of half a's, half b's, and terminated with a 'c'
     size_t data_sz = (DATAFIELD_SZ_B * 1) + 10;  // Larger than 1 memblock
@@ -1178,27 +1107,35 @@ int main()
         else
             *c = 'b';
     }
-    
-    // Init File2 - a file of 2 or more memblocks
-    Inode *file2 = file_new(fs, "/dir1", "file2", lg_data, data_sz);
 
-    printf("\nExamining file2 @ /dir1/file2 -\n");
+     // Init Dir1 - A directory in the root dir 
+    Inode *dir1 = dir_new(fs, fs_get_rootinode(fs), "dir1");
+
+    // Init File1 - a file of a single memblock
+    Inode *file1 = file_new(fs, "/dir1", "file1", "hello from file 1", 17);
+
+    // Init File2 - a file of 2 or more memblocks
+    Inode *file2 = file_new(fs, "/", "file2", lg_data, data_sz);
+
+    ////////////////////////////////////////////////////////////////////////
+    // Begin test output
+
+    printf("\nExamining root inode @ ");
+    print_inode_debug(fs, fs->inode_seg);
+
+    // printf("\nExamining root dir @ ");
+    // print_memblock_debug(fs, fs->mem_seg);
+
+    printf("\nExamining dir1 @ /dir1");
+    print_inode_debug(fs, dir1);
+
+    printf("\n\nExamining file1 @ /dir1/file1 -\n");
+    print_inode_debug(fs, file1);
+
+    printf("\n\nExamining file2 @ /file2 -\n");
     print_inode_debug(fs, file2);
 
-    printf("\nTesting resolve path, '/file1' - ");
-    Inode* testnode = file_resolvepath(fs, "/file1");
-
-    // printf("\nTesting resolve path, '/dir1' - ");
-    // Inode* testinode1 = file_resolvepath(fs, "/dir1/");
-    // print_inode_debug(fs, testinode1);
-
-    // printf("\nTesting resolve path, '/dir1/' - ");
-    // testinode1 = file_resolvepath(fs, "/dir1/");
-    // print_inode_debug(fs, testinode1);
-
-
-    // printf("\nTesting resolve path, '/dir1/file2' - ");
-    // testnode = file_resolvepath(fs, "/dir1/file2");
+ 
 
     /////////////////////////////////////////////////////////////////////////
     // Cleanup
