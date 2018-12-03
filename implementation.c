@@ -211,7 +211,8 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
 /* Begin Directory helpers ------------------------------------------------ */
 
 
-// TODO: static void dir_data_remove(FSHandle *fs, char *path) 
+// TODO: static void dir_data_remove(FSHandle *fs, char *path)
+// TODO: static void dir_remove(FSHandle *fs, char *path)
 
 // Returns the inode for the given item (a sub-directory or file) having the
 // parent directory given by inode (Or NULL if item could not be found).
