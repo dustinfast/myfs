@@ -210,14 +210,14 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
 static void inode_data_remove(FSHandle *fs, Inode *inode) {
     MemHead *memblock = inode_firstmemblock(fs, inode);
     MemHead *block_next;     // ptr to memblock->offset_nextblk
-    void *block_end;        // End of memblock's data field
+    void *block_end;         // End of memblock's data field
 
      // Format each memblock of the inode's data
     do {
         block_next = (MemHead*)ptr_from_offset(fs, memblock->offset_nextblk);
         block_end = (void*)memblock + MEMBLOCK_SZ_B;         // End of memblock
         memset(memblock, 0, (block_end - (void*)memblock));  // Format memblock
-        memblock = (MemHead*)block_next;    // Advance to next block in sequence
+        memblock = (MemHead*)block_next;                     // Advance to next
         
     } while (block_next != (MemHead*)fs);  // i.e. memblock->offset_nextblk == 0
 
@@ -227,12 +227,13 @@ static void inode_data_remove(FSHandle *fs, Inode *inode) {
     inode_setlasttime(inode, 1);
 }
 
+
 /* End Inode helpers ------------------------------------------------------ */
 /* Begin File helpers ------------------------------------------------------ */
 
+
 // TODO: static char *file_data_get(FSHandle *fs, char *path, char *buf)
 // TODO: static char *file_data_append(FSHandle *fs, char *path, char *buf)
-// TODO: static char *file_data_remove(FSHandle *fs, char *path, char *buf)
 
 // Creates a new file in the fs having the given properties.
 // Note: path is parent dir path, fname is the file name. Ex: '/' and 'file1'.
@@ -280,10 +281,19 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     return inode;
 }
 
+// Removes the data from the given file
+static void file_data_remove(FSHandle *fs, char *path) {
+    Inode *inode = fs_pathresolve(fs, char *path, NULL);
+    if (inode) inode_data_remove(fs, inode);
+}
+
+
 
 /* End File helpers ------------------------------------------------------- */
 /* Begin Directory helpers ------------------------------------------------ */
 
+
+// TODO: static void dir_data_remove(FSHandle *fs, char *path) 
 
 // Returns the inode for the given item (a sub-directory or file) having the
 // parent directory given by inode (Or NULL if item could not be found).
@@ -1013,10 +1023,10 @@ int main()
     // Begin test files/dirs
 
     printf("\n---- Starting Test Files/Directories -----\n");
-    printf("Filesystem Contents: /, /dir1, /dir1/file1, /file2\n");
+    printf("Test Contents: /, /dir1, /dir1/file1, /file2\n");
 
-    // Build file2 data: a str of half a's, half b's, and terminated with a 'c'
-    size_t data_sz = (DATAFIELD_SZ_B * 1) + 10;  // Larger than 1 memblock
+    // File2 data: a str a's & b's & terminated with a 'c'. Spans 2 memblocks
+    size_t data_sz = DATAFIELD_SZ_B * 1.25;
     char *lg_data = malloc(data_sz);
     for (size_t i = 0; i < data_sz; i++) {
         char *c = lg_data + i;
@@ -1028,13 +1038,9 @@ int main()
             *c = 'b';
     }
 
-     // Init Dir1 - A directory in the root dir 
+     // Init Dir1, File1, and File2
     Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
-
-    // Init File1 - a file of a single memblock
     Inode *file1 = file_new(fs, "/dir1", "file1", "hello from file 1", 17);
-
-    // Init File2 - a file of 2 or more memblocks
     Inode *file2 = file_new(fs, "/", "file2", lg_data, data_sz);
 
     ////////////////////////////////////////////////////////////////////////
@@ -1042,7 +1048,7 @@ int main()
 
     // Root dir
     printf("\nExamining / ");
-    print_inode_debug(fs, fs->inode_seg);
+    print_inode_debug(fs, fs_rootnode_get(fs));
 
     // Dir 1
     printf("\nExamining /dir1 ");
@@ -1052,10 +1058,9 @@ int main()
     printf("\n\nExamining /dir1/file1 ");
     print_inode_debug(fs, file1);
 
-
-    // File 2
-    printf("\n\nExamining /file2 ");
-    print_inode_debug(fs, file2);
+    // File 2 (screen hog)
+    // printf("\n\nExamining /file2 ");
+    // print_inode_debug(fs, file2);
 
 
     /////////////////////////////////////////////////////////////////////////
