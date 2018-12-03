@@ -367,7 +367,7 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
 
 
 // Maps a filesystem of size fssize onto fsptr and returns a handle to it.
-static FSHandle* fs_gethandle(void *fsptr, size_t size) {
+static FSHandle* fs_handle_get(void *fsptr, size_t size) {
     if (size < MIN_FS_SZ_B) {
         printf("ERROR: Received an invalid file system size.\n");
         return NULL;
@@ -465,7 +465,7 @@ static FSHandle* fs_gethandle(void *fsptr, size_t size) {
 // Returns a handle to a myfs filesystem on success.
 // On fail, sets errnoptr to EFAULT and returns NULL.
 static FSHandle *fs_bind(void *fsptr, size_t fssize, int *errnoptr) {
-    FSHandle *fs = fs_gethandle(fsptr, fssize);
+    FSHandle *fs = fs_handle_get(fsptr, fssize);
     if (!fs) *errnoptr = EFAULT;
     return fs;
 }
@@ -851,7 +851,7 @@ int main()
     
     // Associate the filesys with a handle.
     printf("\nCreating filesystem...\n");
-    FSHandle *fs = fs_gethandle(fsptr, fssize);
+    FSHandle *fs = fs_handle_get(fsptr, fssize);
 
     printf("\n");
     print_fs_debug(fs);
