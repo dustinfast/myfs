@@ -56,114 +56,15 @@
 /* End File System Documentation ------------------------------------------ */
 /* Begin Function Prototypes ---------------------------------------------- */
 
+
 // Function prototypes
-static int file_name_isvalid(char *fname);
 static Inode* fs_rootnode_gete(FSHandle *fs);
 static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *subdirname);
 
+
 /* End Function Prototypes ------------------------------------------------ */
-/* Begin Memblock helpers ------------------------------------------------- */
+/* Begin Inode helpers ---------------------------------------------------- */
 
-
-
-
-/* End Memblock helpers --------------------------------------------------- */
-/* Begin Our Filesystem helpers ------------------------------------------- */
-
-
-// TODO: static char *file_data_get(FSHandle *fs, char *path, char *buf)
-
-// Returns a ptr to a memory block's data field.
-static void* memblock_datafield(FSHandle *fs, MemHead *memblock){
-    return (void*)(memblock + ST_SZ_MEMHEAD);
-}
-
-// Returns 1 if the given memory block is free, else returns 0.
-static int memblock_isfree(MemHead *memhead) {
-    if (memhead->not_free == 0)
-        return 1;
-    return 0;
-}
-
-// Returns the first free memblock in the given filesystem
-static MemHead* memblock_nextfree(FSHandle *fs) {
-    MemHead *memblock = fs->mem_seg;
-    size_t num_memblocks = fs->num_memblocks;
-
-    for (int i = 0; i < num_memblocks; i++)
-    {
-        if (memblock_isfree(memblock))
-            return memblock;
-
-        memblock = memblock + (sizeof(MEMBLOCK_SZ_B) * sizeof(void*));
-    }
-    return NULL;
-}
-
-// Returns the number of free memblocks in the filesystem
-static size_t memblocks_numfree(FSHandle *fs) {
-    MemHead *memblock = fs->mem_seg;
-    size_t num_memblocks = fs->num_memblocks;
-    size_t num_free = 0;
-
-    for (int i = 0; i < num_memblocks; i++)
-    {
-        if (memblock_isfree(memblock))
-            num_free++;
-
-        memblock = memblock + (sizeof(MEMBLOCK_SZ_B) * sizeof(void*));
-    }
-    return num_free;
-}
-
-// Populates buf with a string representing the given memblock's data,
-// plus the data of any subsequent MemBlocks extending it.
-// Returns: The size of the data at buf.
-size_t memblock_data_get(FSHandle *fs, MemHead *memhead, char *buf) {
-    MemHead *memblock = (MemHead*) memhead;
-    size_t total_sz = 0;
-    size_t old_sz = 0;
-    size_t sz_to_write = 0;
-
-    // Iterate each 'next' memblock until we get to one that pts no further
-    while (1) {
-        // Denote new required size of buf based on current pos in data
-        old_sz = total_sz;
-        sz_to_write = (size_t)memblock->data_size_b;
-        total_sz += sz_to_write;
-
-        if (!sz_to_write) 
-            break;  // memblock has zero bytes of data
-         
-        // Resize buf to accomodate the new data
-        buf = realloc(buf, total_sz);
-        if (!buf) {
-            printf("ERROR: Failed to realloc.");
-            return 0;
-        }
-
-        // Get a ptr to memblock's data field
-        char *memblocks_data_field = (char *)(memblock + ST_SZ_MEMHEAD);
-
-        // Cpy memblock's data into our buffer
-        void *buf_writeat = (void *)buf + old_sz;
-        memcpy(buf_writeat, memblocks_data_field, sz_to_write);
-        
-        // Debug
-        // printf("sz_to_write: %lu\n", sz_to_write);
-        // printf("Memblock Data:\n");
-        // write(fileno(stdout), (char *)buf_writeat, sz_to_write);
-        
-        // If on the last (or only) memblock of the sequence, stop iterating
-        if (memblock->offset_nextblk == 0)
-            break;
-        
-        // Else, start operating on the next memblock in the sequence
-        else
-            memblock = (MemHead*) ptr_from_offset(fs, memblock->offset_nextblk);
-    }
-    return total_sz;
-}
 
 // Sets the last access time for the given node to the current time.
 // If set_modified, also sets the last modified time to the current time.
@@ -332,27 +233,10 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
     free(data);
 }
 
-// Returns 1 iff fname is legal ascii chars and within max length, else 0.
-static int file_name_isvalid(char *fname) {
-    int len = 0;
-    int ord = 0;
+/* End Inode helpers ------------------------------------------------------ */
+/* Begin File helpers ------------------------------------------------------ */
 
-    for (char *c = fname; *c != '\0'; c++) {
-        len++;
-
-        // Check for over max length
-        if (len > FNAME_MAXLEN)
-            return 0;
-
-        // Check for illegal chars ({, }, |, ~, DEL, :, /, and comma char)
-        ord = (int) *c;
-        if (ord < 32 || ord == 44 || ord  == 47 || ord == 58 || ord > 122)
-            return 0;  
-    }
-
-    if (len)
-        return 1;
-}
+// TODO: static char *file_data_get(FSHandle *fs, char *path, char *buf)
 
 // Creates a new file in the fs having the given properties.
 // Note: path is parent dir path, fname is the file name. Ex: '/' and 'file1'.
