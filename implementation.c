@@ -59,7 +59,7 @@
 #define FS_PATH_SEP ("/")                   // File system's path seperator
 #define FS_DIRDATA_SEP (":")                // Dir data name/offset seperator
 #define FS_DIRDATA_END ("\n")               // Dir data name/offset end char
-#define FS_BLOCK_SZ_KB (.5)                 // Total kbs of each memory block
+#define FS_BLOCK_SZ_KB (.25)                // Total kbs of each memory block
 #define FNAME_MAXLEN (256)                  // Max length of any filename
 #define BLOCKS_TO_INODES (1)                // Num of mem blocks to each inode
 #define MAGIC_NUM (UINT32_C(0xdeadd0c5))    // Num for denoting block init
@@ -489,17 +489,18 @@ static Inode* dir_getsubitem(FSHandle *fs, Inode *inode, char *subdirname) {
 // Creates a new/empty sub-directory under the parent dir specified by inode.
 // Returns: A ptr to the newly created dirs inode, else NULL.
 static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
+    // Validate params
     if (!inode_isdir(inode)) {
-        printf("ERROR: Attempted to add a directory to a non-dir inode.");
+        printf("ERROR: Attempted to add a directory to a non-dir inode.");  // debug
         return NULL; 
     } else if (!file_name_isvalid(dirname)) {
-            printf("ERROR: Attempted to add a directory with an invalid name.");
+            printf("ERROR: Attempted to add a directory with an invalid name.");  // debug
             return NULL;
-    }  // Note: must be done even though its done by inode_set_fname later
+    }  // Note: Should be done here even though its done by inode_set_fname later
 
-    // If a dir of this name already exists
+    // If an item of this name already exists
     if(dir_getsubitem(fs, inode, dirname) != NULL) {
-        printf("ERROR: Attempted to add a directory w/name that already exists.");
+        printf("ERROR: Attempted to add a directory w/name that already exists.");  // debug
         return NULL;
     }
 
@@ -509,7 +510,7 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     newdir_inode->offset_firstblk = (size_t*)offset_from_ptr(fs, (void*)newdir_memblock);
 
     if (newdir_inode == NULL || newdir_memblock == NULL) {
-        printf("ERROR: Failed to get free inode or memblock while adding dir.\n");
+        printf("ERROR: Failed to get free inode or memblock while adding dir.\n");  // debug
         return NULL;
     }
 
@@ -531,6 +532,7 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     // printf("  Parent data: %s\n", data);
 
     // Concatenate parent dir's data with new dir's data
+    // TODO: dir_data_append
     data = realloc(data, data_sz);
     strcat(data, dirname);
     strcat(data, FS_DIRDATA_SEP);
@@ -562,8 +564,7 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     return newdir_inode;
 }
 
-// Returns the number of free bytes in the file system, according to the
-// number of free memory blocks.
+// Returns number of free bytes in the fs, as based on num free mem blocks.
 static size_t fs_freespace(FSHandle *fs) {
     size_t num_memblocks = memblocks_numfree(fs);
     return num_memblocks * DATAFIELD_SZ_B;
@@ -1019,7 +1020,8 @@ typedef long unsigned int lui; // Shorthand convenience
 
 // Print memory block stats
 void print_memblock_debug(FSHandle *fs, MemHead *memhead) {
-    printf("Memory block at %lu:\n", (lui)memhead);
+    printf("Memory Block -\n");
+    printf("    addr            : %lu\n", (lui)memhead);
     printf("    offset          : %lu\n", (lui)offset_from_ptr(fs, memhead));
     printf("    not_free        : %lu\n", (lui)memhead->not_free);
     printf("    data_size_b     : %lu\n", (lui)memhead->data_size_b);
@@ -1038,7 +1040,8 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
     char *buf = malloc(0);
     size_t sz = inode_getdata(fs, inode, buf);
     
-    printf("Inode at %lu:\n", (lui)inode);
+    printf("Inode -\n");
+    printf("    addr                : %lu\n", (lui)inode);
     printf("    offset              : %lu\n", (lui)offset_from_ptr(fs, inode));
     printf("    fname               : %s\n", inode->fname);
     printf("    is_dir              : %lu\n", (lui)inode->is_dir);
@@ -1048,8 +1051,11 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
     printf("    last_mod            : %09ld\n", inode->last_mod->tv_sec);
     printf("    offset_firstblk     : %lu\n", (lui)inode->offset_firstblk);  
     printf("    data size           : %lu\n", sz); 
-    printf("    data                :\n"); 
-    write(fileno(stdout), buf, sz);
+    printf("    data                : ");
+    if (sz)
+        printf("%s", buf);
+    else
+        printf("NONE"); 
 
     // free(buf);  // TODO: This causes crazieness
 }
@@ -1079,13 +1085,12 @@ int main()
       
     /////////////////////////////////////////////////////////////////////////
     // Begin file system init  
-    printf("\n\n---- Initializing File System -----\n\n");
 
     size_t fssize = kb_to_bytes(16) + ST_SZ_FSHANDLE;  // kb align after handle
     void *fsptr = malloc(fssize);  // Allocate fs space (usually done by myfs.c)
     
     // Associate the filesys with a handle.
-    printf("Creating filesystem...\n");
+    printf("\nCreating filesystem...\n");
     FSHandle *fs = fs_gethandle(fsptr, fssize);
 
     printf("\n");
@@ -1093,7 +1098,9 @@ int main()
 
     /////////////////////////////////////////////////////////////////////////
     // Begin test files/dirs
-    printf("\n\n---- Starting Test Files/Directories -----\n\n");
+
+    printf("\n---- Starting Test Files/Directories -----\n");
+    printf("(Contains files: [/, /dir1, /dir1/file1, /file2])\n");
 
     // Build file2 data: a str of half a's, half b's, and terminated with a 'c'
     size_t data_sz = (DATAFIELD_SZ_B * 1) + 10;  // Larger than 1 memblock
@@ -1120,26 +1127,30 @@ int main()
     ////////////////////////////////////////////////////////////////////////
     // Begin test output
 
-    printf("\nExamining root inode @ ");
+    // Root dir
+    printf("\nExamining / ");
     print_inode_debug(fs, fs->inode_seg);
 
-    // printf("\nExamining root dir @ ");
+    // printf("\nExamining / ");
     // print_memblock_debug(fs, fs->mem_seg);
 
-    printf("\nExamining dir1 @ /dir1");
+    // Dir 1
+    printf("\nExamining /dir1 ");
     print_inode_debug(fs, dir1);
 
-    printf("\n\nExamining file1 @ /dir1/file1 -\n");
+    // File1
+    printf("\n\nExamining /dir1/file1 ");
     print_inode_debug(fs, file1);
 
-    printf("\n\nExamining file2 @ /file2 -\n");
+    // File 2
+    printf("\n\nExamining /file2 ");
     print_inode_debug(fs, file2);
 
- 
 
     /////////////////////////////////////////////////////////////////////////
     // Cleanup
-    printf("\nExiting...\n");
+    
+    printf("\n\nExiting...\n");
     free(fsptr);
 
     return 0; 
