@@ -1,20 +1,27 @@
-/*  myfs_includes.h - A collection of definitions and helper funcs for myfs.
+/*  myfs_includes.h - Definitions and helpers for the myfs file system.
 
-    Contributors: Dustin Fast
+    Author: Dustin Fast, 2018
 */
 
 #include <time.h>
 
 
-/* Begin FS Definitions ---------------------------------------------------- */
+/* Begin Configurables  -------------------------------------------------- */
+
+
+#define FS_BLOCK_SZ_KB (.25)                // Total kbs of each memory block
+#define FNAME_MAXLEN (256)                  // Max length of any filename
+#define BLOCKS_TO_INODES (1)                // Num of mem blocks to each inode
+
+
+/* End Configurables  ---------------------------------------------------- */
+/* Begin File System Definitions ----------------------------------------- */
+
 
 #define BYTES_IN_KB (1024)                  // Num bytes in a kb
 #define FS_PATH_SEP ("/")                   // File system's path seperator
 #define FS_DIRDATA_SEP (":")                // Dir data name/offset seperator
 #define FS_DIRDATA_END ("\n")               // Dir data name/offset end char
-#define FS_BLOCK_SZ_KB (.25)                // Total kbs of each memory block
-#define FNAME_MAXLEN (256)                  // Max length of any filename
-#define BLOCKS_TO_INODES (1)                // Num of mem blocks to each inode
 #define MAGIC_NUM (UINT32_C(0xdeadd0c5))    // Num for denoting block init
 
 // Inode -
@@ -69,41 +76,7 @@ typedef struct FSHandle {
 #define FS_START_OFFSET sizeof(FSHandle)
 
 
-/* End Definitions ------------------------------------------------------- */
-/* Begin String Helpers -------------------------------------------------- */
-
-// Returns a size_t denoting the given null-terminated string's length.
-size_t str_len(char *arr) {
-    int length = 0;
-    for (char *c = arr; *c != '\0'; c++)
-        length++;
-
-    return length;
-}
-
-// Returns 1 iff fname is legal ascii chars and within max length, else 0.
-static int file_name_isvalid(char *fname) {
-    int len = 0;
-    int ord = 0;
-
-    for (char *c = fname; *c != '\0'; c++) {
-        len++;
-
-        // Check for over max length
-        if (len > FNAME_MAXLEN)
-            return 0;
-
-        // Check for illegal chars ({, }, |, ~, DEL, :, /, and comma char)
-        ord = (int) *c;
-        if (ord < 32 || ord == 44 || ord  == 47 || ord == 58 || ord > 122)
-            return 0;  
-    }
-
-    if (len)
-        return 1;
-}
-
-/* End String helpers ----------------------------------------------------- */
+/* End FS Definitions ------------------------------------------------------- */
 /* Begin ptr/bytes helpers ------------------------------------------------ */
 
 // Returns a ptr to a mem address in the file system given an offset.
@@ -116,24 +89,24 @@ static size_t offset_from_ptr(FSHandle *fs, void *ptr) {
     return ptr - (void*)fs;
 }
 
-/* Returns the given number of kilobytes converted to bytes. */
+// Returns the given number of kilobytes converted to bytes.
 size_t kb_to_bytes(size_t size) {
     return (size * BYTES_IN_KB);
 }
 
-/* Returns the given number of bytes converted to kilobytes.  */
+// Returns the given number of bytes converted to kilobytes.
 size_t bytes_to_kb(size_t size) {
     return (1.0 * size / BYTES_IN_KB);
 }
 
-/* Returns 1 if given bytes are alignable on the given block_sz, else 0. */
+// Returns 1 if given bytes are alignable on the given block_sz, else 0.
 int is_bytes_blockalignable(size_t bytes, size_t block_sz) {
     if (bytes % block_sz == 0)
         return 1;
     return 0;
 }
 
-/* Returns 1 if given size is alignable on the given block_sz, else 0. */
+// Returns 1 if given size is alignable on the given block_sz, else 0.
 int is_kb_blockaligned(size_t kbs_size, size_t block_sz) {
     return is_bytes_blockalignable(kb_to_bytes(kbs_size), block_sz);
 }
@@ -234,9 +207,59 @@ size_t memblock_data_get(FSHandle *fs, MemHead *memhead, char *buf) {
 }
 
 
-/* End Memblock helpers --------------------------------------------------- */
+/* End Memblock helpers -------------------------------------------------- */
+/* Begin filesystem helpers ---------------------------------------------- */
 
 
+// Returns number of free bytes in the fs, as based on num free mem blocks.
+static size_t fs_freespace(FSHandle *fs) {
+    size_t num_memblocks = memblocks_numfree(fs);
+    return num_memblocks * DATAFIELD_SZ_B;
+}
+
+// Returns the root directory's inode for the given file system.
+static Inode* fs_rootnode_get(FSHandle *fs) {
+    return fs->inode_seg;
+}
+
+
+/* End filesystem helpers ------------------------------------------------ */
+/* Begin String Helpers -------------------------------------------------- */
+
+
+// Returns a size_t denoting the given null-terminated string's length.
+size_t str_len(char *arr) {
+    int length = 0;
+    for (char *c = arr; *c != '\0'; c++)
+        length++;
+
+    return length;
+}
+
+// Returns 1 iff fname is legal ascii chars and within max length, else 0.
+static int file_name_isvalid(char *fname) {
+    int len = 0;
+    int ord = 0;
+
+    for (char *c = fname; *c != '\0'; c++) {
+        len++;
+
+        // Check for over max length
+        if (len > FNAME_MAXLEN)
+            return 0;
+
+        // Check for illegal chars ({, }, |, ~, DEL, :, /, and comma char)
+        ord = (int) *c;
+        if (ord < 32 || ord == 44 || ord  == 47 || ord == 58 || ord > 122)
+            return 0;  
+    }
+
+    if (len)
+        return 1;
+}
+
+
+/* End String helpers ----------------------------------------------------- */
 
 // ----- Snippets adapted from CLauter's snippets.txt:
 //

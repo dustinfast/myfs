@@ -58,8 +58,6 @@
 
 
 // Function prototypes
-static Inode* fs_rootnode_gete(FSHandle *fs);
-static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *subdirname);
 
 
 /* End Function Prototypes ------------------------------------------------ */
@@ -141,9 +139,8 @@ static size_t inode_data_get(FSHandle *fs, Inode *inode, char *buf) {
     return memblock_data_get(fs, ptr_from_offset(fs, inode->offset_firstblk), buf);   
 }
 
-// Sets the data field and updates size fields for the file denoted by inode.
-// Also sets up the linked list of memory blocks for the file, as needed.
-// Returns: 1 on success, else 0. A 0 likely denotes a full file system.
+// Sets data field and updates size fields for the file or dir denoted by
+// inode including handling of the  linked list of memory blocks for the data.
 // Assumes: Filesystem has enough free memblocks to accomodate data.
 // Assumes: inode has its offset_firstblk set.
 // Note: Do not call on an inode w/data assigned to it, memblocks will be lost.
@@ -237,6 +234,7 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
 /* Begin File helpers ------------------------------------------------------ */
 
 // TODO: static char *file_data_get(FSHandle *fs, char *path, char *buf)
+// TODO: static char *file_data_append(FSHandle *fs, char *path, char *buf)
 
 // Creates a new file in the fs having the given properties.
 // Note: path is parent dir path, fname is the file name. Ex: '/' and 'file1'.
@@ -284,25 +282,30 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data, size_t
     return inode;
 }
 
-// Returns the inode for the given sub-directory name having parent dir inode.
-// Or NULL if sub-directory could not be found.
-static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *subdirname) {
+
+/* End File helpers ------------------------------------------------------- */
+/* Begin Directory helpers ------------------------------------------------ */
+
+
+// Returns the inode for the given item (a sub-directory or file) having the
+// parent directory given by inode (Or NULL if item could not be found).
+static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
     // Get parent dirs data
     size_t data_sz = 0;
     char *curr_data = malloc(0);
     data_sz = inode_data_get(fs, inode, curr_data);
 
     // Get ptr to the dir data for the requested subdir.
-    char *subdir_ptr = strstr(curr_data, subdirname);
+    char *subdir_ptr = strstr(curr_data, itemlabel);
 
     // If subdir does not exist, return NULL
     if(subdir_ptr == NULL) {
-        // printf("FSINFO: Sub item %s does not exist.\n", subdirname); dir_subitem_get
+        // printf("FSINFO: Sub item %s does not exist.\n", itemlabel); dir_subitem_get
         free(curr_data);
         return NULL;
     }
 
-    // else { printf("FSINFO: Sub item %s exists.\n", subdirname); } dir_subitem_get
+    // else { printf("FSINFO: Sub item %s exists.\n", itemlabel); } dir_subitem_get
 
     // Else, extract the subdir's inode offset
     char *offset_ptr = strstr(subdir_ptr, FS_DIRDATA_SEP);
@@ -397,16 +400,9 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     return newdir_inode;
 }
 
-// Returns number of free bytes in the fs, as based on num free mem blocks.
-static size_t fs_freespace(FSHandle *fs) {
-    size_t num_memblocks = memblocks_numfree(fs);
-    return num_memblocks * DATAFIELD_SZ_B;
-}
+/* End Directory helpers ------------------------------------------------- */
+/* Begin filesystem init ------------------------------------------------- */
 
-// Returns the root directory's inode for the given file system.
-static Inode* fs_rootnode_gete(FSHandle *fs) {
-    return fs->inode_seg;
-}
 
 // Maps a filesystem of size fssize onto fsptr and returns a handle to it.
 static FSHandle* fs_gethandle(void *fsptr, size_t size) {
@@ -448,7 +444,7 @@ static FSHandle* fs_gethandle(void *fsptr, size_t size) {
         fs->mem_seg = (MemHead*) memblocks_seg;
 
         // Set up 0th inode as the root inode
-        Inode *root_inode = fs_rootnode_gete(fs);
+        Inode *root_inode = fs_rootnode_get(fs);
         strncpy(root_inode->fname, FS_PATH_SEP, str_len(FS_PATH_SEP));
         *(int*)(&root_inode->is_dir) = 1;
         *(int*)(&root_inode->subdirs) = 0;
@@ -469,7 +465,7 @@ static FSHandle* fs_gethandle(void *fsptr, size_t size) {
 }
 
 
-/* End Filesystem helpers ------------------------------------------------ */
+/* End Filesystem init ---------------------------------------------------- */
 /* Begin Our 13 implementations ------------------------------------------- */
 
 
@@ -947,7 +943,7 @@ int main()
     }
 
      // Init Dir1 - A directory in the root dir 
-    Inode *dir1 = dir_new(fs, fs_rootnode_gete(fs), "dir1");
+    Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
 
     // Init File1 - a file of a single memblock
     Inode *file1 = file_new(fs, "/dir1", "file1", "hello from file 1", 17);
