@@ -9,6 +9,9 @@
 
     It can then be unmounted (in another terminal) with
     fusermount -u ~/fuse-mnt
+
+    Authors: Dustin Fast, Joel Keller, Brooks Woods - 2018
+
 */
 
 #include <stddef.h>
@@ -363,15 +366,18 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
 }
 
 /* End Directory helpers ------------------------------------------------- */
-/* Begin filesystem init ------------------------------------------------- */
+/* Begin Filesystem Helpers ---------------------------------------------- */
 
 
-// Maps a filesystem of size fssize onto fsptr and returns a handle to it.
-static FSHandle* fs_handle_get(void *fsptr, size_t size) {
+// Returns a handle to a filesystem of size fssize onto fsptr.
+// If the fsptr not yet intitialized as a file system, it is formatted first.
+static FSHandle* fs_init(void *fsptr, size_t size) {
+    // Validate file system size
     if (size < MIN_FS_SZ_B) {
         printf("ERROR: Received an invalid file system size.\n");
         return NULL;
     }
+
     // Map file system structure onto the given memory space
     FSHandle *fs = (FSHandle*)fsptr;
 
@@ -405,7 +411,7 @@ static FSHandle* fs_handle_get(void *fsptr, size_t size) {
         fs->inode_seg = (Inode*) segs_start;
         fs->mem_seg = (MemHead*) memblocks_seg;
 
-        // Set up 0th inode as the root inode
+        // Set up 0th inode as the root directory having path FS_PATH_SEP
         Inode *root_inode = fs_rootnode_get(fs);
         strncpy(root_inode->fname, FS_PATH_SEP, str_len(FS_PATH_SEP));
         *(int*)(&root_inode->is_dir) = 1;
@@ -414,7 +420,7 @@ static FSHandle* fs_handle_get(void *fsptr, size_t size) {
         inode_data_set(fs, fs->inode_seg, "", 1);
     } 
 
-    // Otherwise, just update the handle info
+    // Otherwise, file system already intitialized, just populate the handle
     else {
         fs->size_b = fs_size;
         fs->num_inodes = n_inodes;
@@ -423,11 +429,29 @@ static FSHandle* fs_handle_get(void *fsptr, size_t size) {
         fs->mem_seg = (MemHead*) memblocks_seg;
     }
 
-    return fs;   
+    return fs;  // Return the handle to the file system
 }
 
 
-/* End Filesystem init ---------------------------------------------------- */
+// Returns a handle to a myfs filesystem on success.
+// On fail, sets errnoptr to EFAULT and returns NULL.
+static FSHandle *fs_handle(void *fsptr, size_t fssize, int *errnoptr) {
+    FSHandle *fs = fs_init(fsptr, fssize);
+    if (!fs) *errnoptr = EFAULT;
+    return fs;
+}
+
+// A debug function to simulate a pathresolve() call. 
+// Returns some hardcoded test inode (ex the root dir).
+// On fail, sets errnoptr to ENOENT and returns NULL.
+// TODO: actual fs_pathresolve()
+static Inode *fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr) {
+    Inode *inode = fs->inode_seg;
+    if (!inode) *errnoptr = ENOENT;
+    return inode;
+}
+
+/* End Filesystem Helpers ------------------------------------------------- */
 /* Begin Our 13 implementations ------------------------------------------- */
 
 
@@ -462,13 +486,6 @@ static FSHandle* fs_handle_get(void *fsptr, size_t size) {
       return THIS(env->memory, env->size, &err, env->uid, env->gid, path, st);
 */
 
-// Returns a handle to a myfs filesystem on success.
-// On fail, sets errnoptr to EFAULT and returns NULL.
-static FSHandle *fs_bind(void *fsptr, size_t fssize, int *errnoptr) {
-    FSHandle *fs = fs_handle_get(fsptr, fssize);
-    if (!fs) *errnoptr = EFAULT;
-    return fs;
-}
 
 int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
                           uid_t uid, gid_t gid,
@@ -476,15 +493,13 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
     FSHandle *fs;   // Handle to the file system
     Inode *inode;   // Ptr to the inode for the given path
 
-    fs = fs_bind(fsptr, fssize, errnoptr); // Bind fs to the filesystem
-    if (!fs) return -1;                    // Fail: bad fsptr or fssize given   
+    fs = fs_handle(fsptr, fssize, errnoptr);      // Bind filesys to memory
+    if (!fs) return -1;                         // Fail: Bad fsptr or fssize  
 
-    // TODO: inode = path_resolve(fs, path) instead of fs->inode_seg
-    inode = fs->inode_seg;
-    if (!inode) {
-        *errnoptr = ENOENT;
-        return -1;  // Fail - bad path given
-    }    
+    inode = fs_pathresolve(fs, path, errnoptr); // Get file or dir inode
+    if (!inode) return -1;                      // Fail - bad path given
+
+    
 
     //Reset the memory of the results container
     memset(stbuf, 0, sizeof(struct stat));   
@@ -851,7 +866,7 @@ int main()
     
     // Associate the filesys with a handle.
     printf("\nCreating filesystem...\n");
-    FSHandle *fs = fs_handle_get(fsptr, fssize);
+    FSHandle *fs = fs_init(fsptr, fssize);
 
     printf("\n");
     print_fs_debug(fs);

@@ -1,4 +1,5 @@
 /*  myfs_includes.h - Definitions and helpers for the myfs file system.
+                      For use by implementation.c
 
     Author: Dustin Fast, 2018
 */
