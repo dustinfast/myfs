@@ -47,97 +47,27 @@
         Ex: "file1:offset\nfile2:offset"
 
     Design Decisions:
-        Assume a single process accessing the fs at a time?
+        Assume a single process accesses the fs at a time?
         To begin writing data before checking fs has enough room?
         Assume only absolute paths passed to 13 funcs?
         Filename and path chars to allow.
 
 
 /* End File System Documentation ------------------------------------------ */
-/* Begin Our Definitions -------------------------------------------------- */
-
-#define FS_PATH_SEP ("/")                   // File system's path seperator
-#define FS_DIRDATA_SEP (":")                // Dir data name/offset seperator
-#define FS_DIRDATA_END ("\n")               // Dir data name/offset end char
-#define FS_BLOCK_SZ_KB (.25)                // Total kbs of each memory block
-#define FNAME_MAXLEN (256)                  // Max length of any filename
-#define BLOCKS_TO_INODES (1)                // Num of mem blocks to each inode
-#define MAGIC_NUM (UINT32_C(0xdeadd0c5))    // Num for denoting block init
-
-// Inode -
-// An Inode represents the meta-data of a file or folder.
-typedef struct Inode { 
-    char fname[FNAME_MAXLEN];   // The file/folder's label
-    int *is_dir;                // if 1, node represents a dir, else a file
-    int *subdirs;               // Subdir count (unused if not is_dir)
-    size_t *file_size_b;        // File's/folder's data size, in bytes
-    struct timespec *last_acc;  // File/folder last access time
-    struct timespec *last_mod;  // File/Folder last modified time
-    size_t *offset_firstblk;    // Byte offset from fsptr to file/folder's 1st
-                                // memblock, or 0 if inode is free/unused
-} Inode;
-
-// Memory block header -
-// Each file/dir uses one or more memory blocks.
-typedef struct MemHead {
-    int *not_free;          // Denotes memory block in use by a file (1 = used)
-    size_t *data_size_b;    // Size of data field occupied
-    size_t *offset_nextblk; // Bytes offset (from fsptr) to next block of 
-                            // file's data if any, else 0
-} MemHead;
-
-// Top-level filesystem handle
-// A file system is a list of inodes where each knows the offset of the first 
-// memory block for that file/dir.
-typedef struct FSHandle {
-    uint32_t magic;             // "Magic" number, for denoting mem ini'd
-    size_t size_b;              // Fs sz from inode seg to end of mem blocks
-    int num_inodes;             // Num inodes the file system contains
-    int num_memblocks;          // Num memory blocks the file system contains
-    struct Inode *inode_seg;    // Ptr to start of inodes segment
-    struct MemHead *mem_seg;    // Ptr to start of mem blocks segment
-} FSHandle;
-
-// Size in bytes of the filesystem's structs (above)
-#define ST_SZ_INODE sizeof(Inode)
-#define ST_SZ_MEMHEAD sizeof(MemHead)
-#define ST_SZ_FSHANDLE sizeof(FSHandle)  
-
-// Size of each memory block's data field (after kb aligning w/header) 
-#define DATAFIELD_SZ_B (FS_BLOCK_SZ_KB * BYTES_IN_KB - sizeof(MemHead))    
-
-// Memory block size = MemHead + data field of size DATAFIELD_SZ_B
-#define MEMBLOCK_SZ_B sizeof(MemHead) + DATAFIELD_SZ_B
-
-// Min requestable fs size = FSHandle + 1 inode + root dir block + 1 free block
-#define MIN_FS_SZ_B sizeof(FSHandle) + sizeof(Inode) + (2 * MEMBLOCK_SZ_B) 
-
-// Offset in bytes from fsptr to start of inodes segment
-#define FS_START_OFFSET sizeof(FSHandle)
+/* Begin Function Prototypes ---------------------------------------------- */
 
 // Function prototypes
 static int file_name_isvalid(char *fname);
 static Inode* fs_rootnode_gete(FSHandle *fs);
 static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *subdirname);
 
-/* End Our Definitions ---------------------------------------------------- */
-/* Begin Our Utility helpers ---------------------------------------------- */
+/* End Function Prototypes ------------------------------------------------ */
+/* Begin Memblock helpers ------------------------------------------------- */
 
 
-// TODO: Move helpers to lib and just have main interface in this file
-
-// Returns a ptr to a mem address in the file system given an offset.
-static void* ptr_from_offset(FSHandle *fs, size_t *offset) {
-    return (void*)((long unsigned int)fs + (size_t)offset);
-}
-
-// Returns an int offset from the filesystem's start address for the given ptr.
-static size_t offset_from_ptr(FSHandle *fs, void *ptr) {
-    return ptr - (void*)fs;
-}
 
 
-/* End Our Utility helpers ------------------------------------------------ */
+/* End Memblock helpers --------------------------------------------------- */
 /* Begin Our Filesystem helpers ------------------------------------------- */
 
 

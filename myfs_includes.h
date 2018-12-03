@@ -6,17 +6,73 @@
 #include <time.h>
 
 
-/* Begin Definitions ---------------------------------------------------- */
+/* Begin FS Definitions ---------------------------------------------------- */
 
+#define BYTES_IN_KB (1024)                  // Num bytes in a kb
+#define FS_PATH_SEP ("/")                   // File system's path seperator
+#define FS_DIRDATA_SEP (":")                // Dir data name/offset seperator
+#define FS_DIRDATA_END ("\n")               // Dir data name/offset end char
+#define FS_BLOCK_SZ_KB (.25)                // Total kbs of each memory block
+#define FNAME_MAXLEN (256)                  // Max length of any filename
+#define BLOCKS_TO_INODES (1)                // Num of mem blocks to each inode
+#define MAGIC_NUM (UINT32_C(0xdeadd0c5))    // Num for denoting block init
 
-#define BYTES_IN_KB (1024)  // Num bytes in a kb
+// Inode -
+// An Inode represents the meta-data of a file or folder.
+typedef struct Inode { 
+    char fname[FNAME_MAXLEN];   // The file/folder's label
+    int *is_dir;                // if 1, node represents a dir, else a file
+    int *subdirs;               // Subdir count (unused if not is_dir)
+    size_t *file_size_b;        // File's/folder's data size, in bytes
+    struct timespec *last_acc;  // File/folder last access time
+    struct timespec *last_mod;  // File/Folder last modified time
+    size_t *offset_firstblk;    // Byte offset from fsptr to file/folder's 1st
+                                // memblock, or 0 if inode is free/unused
+} Inode;
+
+// Memory block header -
+// Each file/dir uses one or more memory blocks.
+typedef struct MemHead {
+    int *not_free;          // Denotes memory block in use by a file (1 = used)
+    size_t *data_size_b;    // Size of data field occupied
+    size_t *offset_nextblk; // Bytes offset (from fsptr) to next block of 
+                            // file's data if any, else 0
+} MemHead;
+
+// Top-level filesystem handle
+// A file system is a list of inodes where each knows the offset of the first 
+// memory block for that file/dir.
+typedef struct FSHandle {
+    uint32_t magic;             // "Magic" number, for denoting mem ini'd
+    size_t size_b;              // Fs sz from inode seg to end of mem blocks
+    int num_inodes;             // Num inodes the file system contains
+    int num_memblocks;          // Num memory blocks the file system contains
+    struct Inode *inode_seg;    // Ptr to start of inodes segment
+    struct MemHead *mem_seg;    // Ptr to start of mem blocks segment
+} FSHandle;
+
+// Size in bytes of the filesystem's structs (above)
+#define ST_SZ_INODE sizeof(Inode)
+#define ST_SZ_MEMHEAD sizeof(MemHead)
+#define ST_SZ_FSHANDLE sizeof(FSHandle)  
+
+// Size of each memory block's data field (after kb aligning w/header) 
+#define DATAFIELD_SZ_B (FS_BLOCK_SZ_KB * BYTES_IN_KB - sizeof(MemHead))    
+
+// Memory block size = MemHead + data field of size DATAFIELD_SZ_B
+#define MEMBLOCK_SZ_B sizeof(MemHead) + DATAFIELD_SZ_B
+
+// Min requestable fs size = FSHandle + 1 inode + root dir block + 1 free block
+#define MIN_FS_SZ_B sizeof(FSHandle) + sizeof(Inode) + (2 * MEMBLOCK_SZ_B) 
+
+// Offset in bytes from fsptr to start of inodes segment
+#define FS_START_OFFSET sizeof(FSHandle)
 
 
 /* End Definitions ------------------------------------------------------- */
-/* Begin Utility helpers ------------------------------------------------- */
+/* Begin String Helpers -------------------------------------------------- */
 
-
-/* Returns a size_t denoting the given null-terminated string's length. */
+// Returns a size_t denoting the given null-terminated string's length.
 size_t str_len(char *arr) {
     int length = 0;
     for (char *c = arr; *c != '\0'; c++)
@@ -33,6 +89,19 @@ void str_write(char *arr) {
     // Write string to stdout
     while (total_written < char_count)
         total_written += write(fileno(stdout), arr + total_written, char_count - total_written);
+}
+
+/* End String helpers ----------------------------------------------------- */
+/* Begin ptr/bytes helpers ------------------------------------------------ */
+
+// Returns a ptr to a mem address in the file system given an offset.
+static void* ptr_from_offset(FSHandle *fs, size_t *offset) {
+    return (void*)((long unsigned int)fs + (size_t)offset);
+}
+
+// Returns an int offset from the filesystem's start address for the given ptr.
+static size_t offset_from_ptr(FSHandle *fs, void *ptr) {
+    return ptr - (void*)fs;
 }
 
 /* Returns the given number of kilobytes converted to bytes. */
@@ -57,106 +126,14 @@ int is_kb_blockaligned(size_t kbs_size, size_t block_sz) {
     return is_bytes_blockalignable(kb_to_bytes(kbs_size), block_sz);
 }
 
+/* End ptr/bytes helpers -------------------------------------------------- */
 
-/* End Utility helpers --------------------------------------------------- */
 
 
 
 
 // ----- Snippets adapted from CLauter's snippets.txt:
 //
-// /* Internal function: used to get a block of memory, with its
-//    header 
-// */
-// static MemBlock *get_memory_block(FileSystem* fs, size_t size) {
-//   MemBlock *curr, *prev, *new;
-  
-//   if (fs == NULL) return NULL;
-//   if (size == 0) return NULL;
-//   if (fs->first_free == ((__his_off_t) 0)) return NULL;
-  
-//   for (curr=((MemBlock *) get_offset_to_ptr(fs, fs->first_free)), prev=NULL;
-//        curr!=NULL;
-//        curr=((MemBlock *) get_offset_to_ptr(fs, (prev=curr)->next))) {
-//     if (curr->size >= size) {
-//       if ((curr->size - size) < sizeof(MemBlock)) {
-//         if (prev == NULL) {
-//           fs->first_free = curr->next;
-//         } else {
-//           prev->next = curr->next;
-//         }
-//         return curr;
-//       } else {
-//         new = (MemBlock *) (((void *) curr) + size);
-//         new->size = curr->size - size;
-//         new->next = curr->next;
-//         if (prev == NULL) {
-//           fs->first_free = get_ptr_to_offset(fs, new);
-//         } else {
-//           prev->next = get_ptr_to_offset(fs, new);
-//         }
-//         curr->size = size;
-//         return curr;
-//       }
-//     }
-//   }
-//   return NULL;
-// }
-
-// /* Internal function: used to coalesce adjacent free memory blocks 
-//    in the ordered linked list of free blocks.
-// */
-// static void coalesce_free_memory_blocks(FileSystem* fs, MemBlock *block) {
-//   MemBlock *clobbered, *next;
-  
-//   if (fs == NULL) return;
-//   if (block == NULL) return;
-//   if (block->next == ((__his_off_t) 0)) return;
-//   if (((void *) (((void *) block) + block->size)) == ((void *) (get_offset_to_ptr(fs, block->next)))) {
-//     clobbered = (MemBlock *) get_offset_to_ptr(fs, block->next);
-//     block->size += clobbered->size;
-//     block->next = clobbered->next;
-//   }
-//   if (block->next == ((__his_off_t) 0)) return;
-//   if (((void *) (((void *) block) + block->size)) == ((void *) (get_offset_to_ptr(fs, block->next)))) {
-//     clobbered = (MemBlock *) get_offset_to_ptr(fs, block->next);
-//     block->size += clobbered->size;
-//     block->next = clobbered->next;
-//   }
-//   if (block->next == ((__his_off_t) 0)) return;  
-//   next = (MemBlock *) get_offset_to_ptr(fs, block->next);
-//   if (next->next == ((__his_off_t) 0)) return;
-//   if (((void *) (((void *) next) + next->size)) == ((void *) (get_offset_to_ptr(fs, next->next)))) {
-//     clobbered = (MemBlock *) get_offset_to_ptr(fs, next->next);
-//     next->size += clobbered->size;
-//     next->next = clobbered->next;
-//   }  
-// }
-
-// /* Internal function: used to return a block of memory to the list of
-//    free blocks 
-// */
-// static void return_memory_block(FileSystem* fs, MemBlock *block) {
-//   MemBlock *curr, *prev;
-  
-//   if (fs == NULL) return;
-//   if (block == NULL) return;
-//   for (curr=((MemBlock *) get_offset_to_ptr(fs, fs->first_free)), prev=NULL;
-//        curr!=NULL;
-//        curr=((MemBlock *) get_offset_to_ptr(fs, (prev=curr)->next))) {
-//     if (((void *) block) < ((void *) curr))
-//       break;
-//   }
-//   if (prev == NULL) {
-//     block->next = fs->first_free;
-//     fs->first_free = get_ptr_to_offset(fs, block);
-//     coalesce_free_memory_blocks(fs, block);
-//   } else {
-//     block->next = get_ptr_to_offset(fs, curr);
-//     prev->next = get_ptr_to_offset(fs, block);
-//     coalesce_free_memory_blocks(fs, prev);
-//   }
-// }
 
 // /* A function to free memory in the style of free(), using fs to
 //    describe the filesystem and an offset instead of a pointer.
@@ -236,25 +213,3 @@ int is_kb_blockaligned(size_t kbs_size, size_t block_sz) {
 //   free_memory(fs, old_off);
 //   return new_off;
 // }
-
-// /* A function returning the maximum size one can request from the
-//    memory allocation functions and get the request satisfied.
-// */
-// static size_t maximum_free_size(FileSystem* fs) {
-//   size_t size;
-//   MemBlock *curr;
-  
-//   if (fs == NULL) return 0;
-//   if (fs->first_free == ((__his_off_t) 0)) return 0;  
-//   size = (size_t) 0;
-//   for (curr=((MemBlock *) get_offset_to_ptr(fs, fs->first_free));
-//        curr!=NULL;
-//        curr=((MemBlock *) get_offset_to_ptr(fs, curr->next))) {
-//     if (curr->size > size) {
-//       size = curr->size;
-//     }
-//   }
-//   if (size < sizeof(MemBlock)) return 0;
-//   return size - sizeof(MemBlock);
-// }
-
