@@ -485,26 +485,23 @@ static Inode *fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr) {
       env = (struct __myfs_environment_struct_t *) (context->private_data);
       return THIS(env->memory, env->size, &err, env->uid, env->gid, path, st);
 */
-
-
 int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
                           uid_t uid, gid_t gid,
                           const char *path, struct stat *stbuf) {
+    // Get a handle to the filesystem 
     FSHandle *fs;   // Handle to the file system
     Inode *inode;   // Ptr to the inode for the given path
-
-    fs = fs_handle(fsptr, fssize, errnoptr);      // Bind filesys to memory
+    fs = fs_handle(fsptr, fssize, errnoptr);    // Bind filesys to memory
     if (!fs) return -1;                         // Fail: Bad fsptr or fssize  
 
+    // Ge the inode for the given path
     inode = fs_pathresolve(fs, path, errnoptr); // Get file or dir inode
     if (!inode) return -1;                      // Fail - bad path given
-
-    
 
     //Reset the memory of the results container
     memset(stbuf, 0, sizeof(struct stat));   
 
-    //Populate stdbuf based on the inode
+    //Populate stdbuf with the atrrdibutes of the inode
     stbuf->st_uid = uid;
     stbuf->st_gid = gid;
     stbuf->st_atim = *inode->last_acc; 
