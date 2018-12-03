@@ -210,8 +210,6 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
 /* Begin File helpers ------------------------------------------------------ */
 
 
-// TODO: static char *file_data_append(FSHandle *fs, char *path, char *buf)
-
 // Creates a new file in the fs having the given properties.
 // Note: path is parent dir path, fname is the file name. Ex: '/' and 'file1'.
 // Returns: A ptr to the newly created file's I-node (or NULL on fail).
@@ -258,16 +256,21 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     return inode;
 }
 
+// Populates buf with the file's data and returns len(buf).
 static size_t file_data_get(FSHandle *fs, char *path, char *buf) {
     Inode *inode = fs_pathresolve(fs, path, NULL);
     return inode_data_get(fs, inode, buf);
 }
 
-
-// Removes the data for the given file.
+// Removes the data from the given file, formatting memblocks, etc., as needed.
 static void file_data_remove(FSHandle *fs, char *path) {
     Inode *inode = fs_pathresolve(fs, path, NULL);
     if (inode) inode_data_remove(fs, inode);
+}
+
+static int file_data_append(FSHandle *fs, char *path, char *append_data) {
+    Inode *inode = fs_pathresolve(fs, path, NULL);
+    return inode_data_append(fs, inode, append_data);
 }
 
 
