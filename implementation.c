@@ -61,13 +61,18 @@
 /* Begin Function Prototypes ---------------------------------------------- */
 
 
-static Inode *fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr);
+static Inode* fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr);
 static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel);
 
 
 /* End Function Prototypes ------------------------------------------------ */
 /* Begin Inode helpers ---------------------------------------------------- */
 
+
+// Returns a ptr to the given inode's first memory block, or NULL if none.
+static MemHead* inode_firstmemblock(FSHandle *fs, Inode *inode) {
+    return (MemHead*)ptr_from_offset(fs, inode->offset_firstblk);
+}
 
 // Sets the last access time for the given node to the current time.
 // If set_modified, also sets the last modified time to the current time.
@@ -84,6 +89,7 @@ static void inode_setlasttime(Inode *inode, int set_modified) {
 
 // Sets the file or directory name (of length sz) for the given inode.
 // Returns: 1 on success, else 0 for invalid filename)
+// TODO: Add functionality to update parent dir if inode already had an fname.
 int inode_fname_set(Inode *inode, char *fname) {
     if (!file_name_isvalid(fname))
         return 0;
@@ -104,7 +110,7 @@ static int inode_isdir(Inode *inode) {
 // Returns: The size of the data at buf.
 static size_t inode_data_get(FSHandle *fs, Inode *inode, char *buf) {
     inode_setlasttime(inode, 0);
-    return memblock_data_get(fs, ptr_from_offset(fs, inode->offset_firstblk), buf);   
+    return memblock_data_get(fs, inode_firstmemblock(fs, inode), buf);   
 }
 
 // Sets data field and updates size fields for the file or dir denoted by
@@ -115,7 +121,7 @@ static size_t inode_data_get(FSHandle *fs, Inode *inode, char *buf) {
 static void inode_data_set(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     //TODO: If inode has existing data, format and release it(see note above)
 
-    MemHead *memblock = ptr_from_offset(fs, inode->offset_firstblk);
+    MemHead *memblock = inode_firstmemblock(fs, inode);
 
     // Use a single block if sz will fit in one
     if (sz <= DATAFIELD_SZ_B) {
@@ -184,7 +190,7 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
     // Concatenate append_data to current data
     data = realloc(data, data_sz);
     if (!data) {
-        printf("FS-ERROR: Failed to realloc.");
+        printf("ERROR: Failed to realloc.");
         return 0;
     }
     strcat(data, append_data);
@@ -200,9 +206,12 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
 
 // Disassociates any data from inode and formats the previously used memblocks.
 // Note: Does not assign the inode a new free first memblock.
-// TODO: static void inode_data_remove(FSHandle *fs, Inode *inode) {
+static void inode_data_remove(FSHandle *fs, Inode *inode) {
+    MemHead *memblock = inode_firstmemblock(fs, inode);
 
-
+    if (!memblock)
+        return;
+}
 
 /* End Inode helpers ------------------------------------------------------ */
 /* Begin File helpers ------------------------------------------------------ */
@@ -219,29 +228,29 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     Inode *parentdir_inode = fs_pathresolve(fs, path, NULL);
     
     if(dir_subitem_get(fs, parentdir_inode, fname) != NULL) {
-        printf("FS-ERROR: File %s already exists\n", fname);
+        printf("ERROR: File %s already exists\n", fname);
         return NULL;
     }
 
     if (memblocks_numfree(fs) <  data_sz / DATAFIELD_SZ_B) {
-        printf("FS-ERROR: Insufficient free memblocks for new file %s\n", fname);
+        printf("ERROR: Insufficient free memblocks for new file %s\n", fname);
         return NULL;
     }
 
     Inode *inode = inode_nextfree(fs);
     if (!inode) {
-        printf("FS-ERROR: Failed getting free inode for new file %s\n", fname);
+        printf("ERROR: Failed getting free inode for new file %s\n", fname);
         return NULL;
     }
 
     MemHead *memblock = memblock_nextfree(fs);
     if (!memblock) {
-        printf("FS-ERROR: Failed getting free memblock for new file %s\n", fname);
+        printf("ERROR: Failed getting free memblock for new file %s\n", fname);
         return NULL;
     }
 
     if (!inode_fname_set(inode, fname)) {
-        printf("FS-ERROR: Invalid filemame for new file %s\n", fname);
+        printf("ERROR: Invalid filemame for new file %s\n", fname);
         return NULL;
     }
     
@@ -275,19 +284,19 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
 
     // If subdir does not exist, return NULL
     if(subdir_ptr == NULL) {
-        // printf("FS-INFO: Sub item %s does not exist.\n", itemlabel); dir_subitem_get
+        // printf("INFO: Sub item %s does not exist.\n", itemlabel); dir_subitem_get
         free(curr_data);
         return NULL;
     }
 
-    // else { printf("FS-INFO: Sub item %s exists.\n", itemlabel); } dir_subitem_get
+    // else { printf("INFO: Sub item %s exists.\n", itemlabel); } dir_subitem_get
 
     // Else, extract the subdir's inode offset
     char *offset_ptr = strstr(subdir_ptr, FS_DIRDATA_SEP);
     char *offsetend_ptr = strstr(subdir_ptr, FS_DIRDATA_END);
 
     if (!offset_ptr || !offsetend_ptr) {
-        printf("FS-ERROR: Parse fail - Dir data may be corrupt.\n");
+        printf("ERROR: Parse fail - Dir data may be corrupt.\n");
         free(curr_data);
         return NULL;
     }
@@ -298,7 +307,7 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
     strncpy(offset_str, offset_ptr + 1, offset_sz - 1);  // +/- 1 to exclude sep
     sscanf(offset_str, "%zu", &offset); // Convert offset from str to size_t
 
-    // Get the inode's ptr and validate it
+    // TODO: Get the inode's ptr and validate it
     Inode *subdir_inode = (Inode*)ptr_from_offset(fs, (size_t*)offset);
 
     // debug
@@ -317,15 +326,15 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
 static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     // Validate...
     if (!inode_isdir(inode)) {
-        printf("FS-ERROR: %s is not a directory\n", dirname);
+        printf("ERROR: %s is not a directory\n", dirname);
         return NULL; 
     } 
     if (!file_name_isvalid(dirname)) {
-            printf("FS-ERROR: %s is not a valid directory name\n", dirname);
+            printf("ERROR: %s is not a valid directory name\n", dirname);
             return NULL;
     }
     if(dir_subitem_get(fs, inode, dirname) != NULL) {
-        printf("FS-ERROR: %s already exists\n", dirname);
+        printf("ERROR: %s already exists\n", dirname);
         return NULL;
     }
 
@@ -336,7 +345,7 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
         (void*)newdir_memblock);
 
     if (newdir_inode == NULL || newdir_memblock == NULL) {
-        printf("FS-ERROR: Failed to get resources adding %s\n", dirname);
+        printf("ERROR: Failed to get resources adding %s\n", dirname);
         return NULL;
     }
 
@@ -384,7 +393,7 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
 static FSHandle* fs_init(void *fsptr, size_t size) {
     // Validate file system size
     if (size < MIN_FS_SZ_B) {
-        printf("FS-ERROR: Received an invalid file system size.\n");
+        printf("ERROR: Received an invalid file system size.\n");
         return NULL;
     }
 
@@ -408,7 +417,7 @@ static FSHandle* fs_init(void *fsptr, size_t size) {
     
     // If first bytes aren't our magic number, format the mem space for the fs
     if (fs->magic != MAGIC_NUM) {
-        printf(" FS-INFO: Formatting new filesystem of size %lu bytes.\n", size);
+        printf(" INFO: Formatting new filesystem of size %lu bytes.\n", size);
         
         // Format mem space w/zero-fill
         memset(fsptr, 0, fs_size);
