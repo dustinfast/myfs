@@ -11,7 +11,7 @@
 
 
 #define FS_BLOCK_SZ_KB (1)                  // Total kbs of each memory block
-#define FNAME_MAXLEN (256)                  // Max length of any filename
+#define NAME_MAXLEN (256)                  // Max length of any filename
 #define BLOCKS_TO_INODES (1)                // Num of mem blocks to each inode
 
 
@@ -28,7 +28,7 @@
 // Inode -
 // An Inode represents the meta-data of a file or folder.
 typedef struct Inode { 
-    char fname[FNAME_MAXLEN];   // The file/folder's label
+    char name[NAME_MAXLEN];   // The file/folder's label
     int *is_dir;                // if 1, node represents a dir, else a file
     int *subdirs;               // Subdir count (unused if not is_dir)
     size_t *file_size_b;        // File's/folder's data size, in bytes
@@ -209,7 +209,54 @@ size_t memblock_data_get(FSHandle *fs, MemHead *memhead, char *buf) {
 
 
 /* End Memblock helpers -------------------------------------------------- */
-/* Begin inode "free" helpers -------------------------------------------- */
+/* Begin inode helpers --------------------------------------------------- */
+
+
+// Returns 1 if the given inode is for a directory, else 0
+static int inode_isdir(Inode *inode) {
+    if (inode->is_dir == 0)
+        return 0;
+    else
+        return 1;
+}
+
+// Returns 1 iff name is legal ascii chars and within max length, else 0.
+static int inode_name_isvalid(char *name) {
+    int len = 0;
+    int ord = 0;
+
+    for (char *c = name; *c != '\0'; c++) {
+        len++;
+
+        // Check for over max length
+        if (len > NAME_MAXLEN)
+            return 0;
+
+        // Check for illegal chars ({, }, |, ~, DEL, :, /, and comma char)
+        ord = (int) *c;
+        if (ord < 32 || ord == 44 || ord  == 47 || ord == 58 || ord > 122)
+            return 0;  
+    }
+
+    if (len)
+        return 1;
+}
+
+// Sets the file or directory name (of length sz) for the given inode.
+// Returns: 1 on success, else 0 for invalid filename)
+// TODO: Add functionality to update parent dir if inode already had a name.
+int inode_name_set(Inode *inode, char *name) {
+    if (!inode_name_isvalid(name))
+        return 0;
+
+    strcpy(inode->name, name); 
+    return 1;
+}
+
+// Returns a ptr to the given inode's first memory block, or NULL if none.
+static MemHead* inode_firstmemblock(FSHandle *fs, Inode *inode) {
+    return (MemHead*)ptr_from_offset(fs, inode->offset_firstblk);
+}
 
 // Returns 1 if the given inode is free, else returns 0.
 static int inode_isfree(Inode *inode) {
@@ -277,27 +324,6 @@ size_t str_len(char *arr) {
     return length;
 }
 
-// Returns 1 iff fname is legal ascii chars and within max length, else 0.
-static int file_name_isvalid(char *fname) {
-    int len = 0;
-    int ord = 0;
-
-    for (char *c = fname; *c != '\0'; c++) {
-        len++;
-
-        // Check for over max length
-        if (len > FNAME_MAXLEN)
-            return 0;
-
-        // Check for illegal chars ({, }, |, ~, DEL, :, /, and comma char)
-        ord = (int) *c;
-        if (ord < 32 || ord == 44 || ord  == 47 || ord == 58 || ord > 122)
-            return 0;  
-    }
-
-    if (len)
-        return 1;
-}
 
 /* Begin Filesys Debug stmts  --------------------------------------------- */
 

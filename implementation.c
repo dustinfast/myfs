@@ -70,14 +70,9 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel);
 
 // TODO: static void inode_free(FSHandle *fs, Inode *inode)
 
-// Returns a ptr to the given inode's first memory block, or NULL if none.
-static MemHead* inode_firstmemblock(FSHandle *fs, Inode *inode) {
-    return (MemHead*)ptr_from_offset(fs, inode->offset_firstblk);
-}
-
 // Sets the last access time for the given node to the current time.
 // If set_modified, also sets the last modified time to the current time.
-static void inode_setlasttime(Inode *inode, int set_modified) {
+static void inode_lasttimes_set(Inode *inode, int set_modified) {
     if (!inode) return;
 
     struct timespec tspec;
@@ -88,29 +83,11 @@ static void inode_setlasttime(Inode *inode, int set_modified) {
         inode->last_mod = &tspec;
 }
 
-// Sets the file or directory name (of length sz) for the given inode.
-// Returns: 1 on success, else 0 for invalid filename)
-// TODO: Add functionality to update parent dir if inode already had an fname.
-int inode_fname_set(Inode *inode, char *fname) {
-    if (!file_name_isvalid(fname))
-        return 0;
-
-    strcpy(inode->fname, fname); 
-    return 1;
-}
-
-// Returns 1 if the given inode is for a directory, else 0
-static int inode_isdir(Inode *inode) {
-    if (inode->is_dir == 0)
-        return 0;
-    else
-        return 1;
-}
 
 // Populates buf with a string representing the given inode's data.
 // Returns: The size of the data at buf.
 static size_t inode_data_get(FSHandle *fs, Inode *inode, char *buf) {
-    inode_setlasttime(inode, 0);
+    inode_lasttimes_set(inode, 0);
     return memblock_data_get(fs, inode_firstmemblock(fs, inode), buf);   
 }
 
@@ -133,7 +110,7 @@ static void inode_data_remove(FSHandle *fs, Inode *inode) {
     // Update the inode to reflect disassociation and associate new memblock.
     inode->file_size_b = 0;
     inode->offset_firstblk = (size_t*)offset_from_ptr(fs, memblock_nextfree(fs));
-    inode_setlasttime(inode, 1);
+    inode_lasttimes_set(inode, 1);
 }
 
 // Sets data field and updates size fields for the file or dir denoted by
@@ -197,7 +174,7 @@ static void inode_data_set(FSHandle *fs, Inode *inode, char *data, size_t sz) {
         }
     }
 
-    inode_setlasttime(inode, 1);
+    inode_lasttimes_set(inode, 1);
     inode->file_size_b = (size_t*) sz;
 }
 
@@ -233,7 +210,6 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
 /* Begin File helpers ------------------------------------------------------ */
 
 
-// TODO: static char *file_data_get(FSHandle *fs, char *path, char *buf)
 // TODO: static char *file_data_append(FSHandle *fs, char *path, char *buf)
 
 // Creates a new file in the fs having the given properties.
@@ -265,7 +241,7 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
         return NULL;
     }
 
-    if (!inode_fname_set(inode, fname)) {
+    if (!inode_name_set(inode, fname)) {
         printf("ERROR: Invalid filemame for new file %s\n", fname);
         return NULL;
     }
@@ -281,6 +257,12 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
 
     return inode;
 }
+
+static size_t file_data_get(FSHandle *fs, char *path, char *buf) {
+    Inode *inode = fs_pathresolve(fs, path, NULL);
+    return inode_data_get(fs, inode, buf);
+}
+
 
 // Removes the data for the given file.
 static void file_data_remove(FSHandle *fs, char *path) {
@@ -336,7 +318,7 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
 
     // debug
     // printf("Subdir Offset: %lu\n", offset);
-    // printf("Returning subdir w/name: %s\n", subdir_inode->fname);
+    // printf("Returning subdir w/name: %s\n", subdir_inode->name);
 
     // Cleanup
     free(curr_data);
@@ -353,7 +335,7 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
         printf("ERROR: %s is not a directory\n", dirname);
         return NULL; 
     } 
-    if (!file_name_isvalid(dirname)) {
+    if (!inode_name_isvalid(dirname)) {
             printf("ERROR: %s is not a valid directory name\n", dirname);
             return NULL;
     }
@@ -401,7 +383,7 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     *(int*)(&inode->subdirs) = *(int*)(&inode->subdirs) + 1;
     
     // Set new dir's properties
-    inode_fname_set(newdir_inode, dirname);
+    inode_name_set(newdir_inode, dirname);
     *(int*)(&newdir_inode->is_dir) = 1;
     inode_data_set(fs, newdir_inode, "", 0); 
 
@@ -456,7 +438,7 @@ static FSHandle* fs_init(void *fsptr, size_t size) {
 
         // Set up 0th inode as the root directory having path FS_PATH_SEP
         Inode *root_inode = fs_rootnode_get(fs);
-        strncpy(root_inode->fname, FS_PATH_SEP, str_len(FS_PATH_SEP));
+        strncpy(root_inode->name, FS_PATH_SEP, str_len(FS_PATH_SEP));
         *(int*)(&root_inode->is_dir) = 1;
         *(int*)(&root_inode->subdirs) = 0;
         fs->inode_seg->offset_firstblk = (size_t*) (memblocks_seg - fsptr);
@@ -983,7 +965,7 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
     printf("Inode -\n");
     printf("    addr                : %lu\n", (lui)inode);
     printf("    offset              : %lu\n", (lui)offset_from_ptr(fs, inode));
-    printf("    fname               : %s\n", inode->fname);
+    printf("    name                : %s\n", inode->name);
     printf("    is_dir              : %lu\n", (lui)inode->is_dir);
     printf("    subdirs             : %lu\n", (lui)inode->subdirs);
     printf("    file_size_b         : %lu\n", (lui)inode->file_size_b);
@@ -996,8 +978,6 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
         printf("%s", buf);
     else
         printf("NONE"); 
-
-    // free(buf);  // TODO: This causes unexpected behavior
 }
 
 int main() 
