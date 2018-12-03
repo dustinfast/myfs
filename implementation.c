@@ -114,13 +114,36 @@ static size_t inode_data_get(FSHandle *fs, Inode *inode, char *buf) {
     return memblock_data_get(fs, inode_firstmemblock(fs, inode), buf);   
 }
 
+// Disassociates any data from inode, formats any previously used memblocks,
+// and assign the inode a new free first memblock.
+static void inode_data_remove(FSHandle *fs, Inode *inode) {
+    MemHead *memblock = inode_firstmemblock(fs, inode);
+    MemHead *block_next;     // ptr to memblock->offset_nextblk
+    void *block_end;         // End of memblock's data field
+
+     // Format each memblock of the inode's data
+    do {
+        block_next = (MemHead*)ptr_from_offset(fs, memblock->offset_nextblk);
+        block_end = (void*)memblock + MEMBLOCK_SZ_B;         // End of memblock
+        memset(memblock, 0, (block_end - (void*)memblock));  // Format memblock
+        memblock = (MemHead*)block_next;                     // Advance to next
+        
+    } while (block_next != (MemHead*)fs);  // i.e. memblock->offset_nextblk == 0
+
+    // Update the inode to reflect disassociation and associate new memblock.
+    inode->file_size_b = 0;
+    inode->offset_firstblk = (size_t*)offset_from_ptr(fs, memblock_nextfree(fs));
+    inode_setlasttime(inode, 1);
+}
+
 // Sets data field and updates size fields for the file or dir denoted by
 // inode including handling of the  linked list of memory blocks for the data.
 // Assumes: Filesystem has enough free memblocks to accomodate data.
 // Assumes: inode has its offset_firstblk set.
-// Note: Do not call on an inode w/data assigned to it, memblocks will be lost.
 static void inode_data_set(FSHandle *fs, Inode *inode, char *data, size_t sz) {
-    //TODO: If inode has existing data, format and release it(see note above)
+    // Format the inode, if needed
+    if (inode->file_size_b)
+        inode_data_remove(fs, inode);
 
     MemHead *memblock = inode_firstmemblock(fs, inode);
 
@@ -205,28 +228,6 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
     free(data);
 }
 
-// Disassociates any data from inode, formats any previously used memblocks,
-// and assign the inode a new free first memblock.
-static void inode_data_remove(FSHandle *fs, Inode *inode) {
-    MemHead *memblock = inode_firstmemblock(fs, inode);
-    MemHead *block_next;     // ptr to memblock->offset_nextblk
-    void *block_end;         // End of memblock's data field
-
-     // Format each memblock of the inode's data
-    do {
-        block_next = (MemHead*)ptr_from_offset(fs, memblock->offset_nextblk);
-        block_end = (void*)memblock + MEMBLOCK_SZ_B;         // End of memblock
-        memset(memblock, 0, (block_end - (void*)memblock));  // Format memblock
-        memblock = (MemHead*)block_next;                     // Advance to next
-        
-    } while (block_next != (MemHead*)fs);  // i.e. memblock->offset_nextblk == 0
-
-    // Update the inode to reflect disassociation and new memblock.
-    inode->file_size_b = 0;
-    inode->offset_firstblk = (size_t*)offset_from_ptr(fs, memblock_nextfree(fs));
-    inode_setlasttime(inode, 1);
-}
-
 
 /* End Inode helpers ------------------------------------------------------ */
 /* Begin File helpers ------------------------------------------------------ */
@@ -281,12 +282,11 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     return inode;
 }
 
-// Removes the data from the given file
+// Removes the data for the given file.
 static void file_data_remove(FSHandle *fs, char *path) {
-    Inode *inode = fs_pathresolve(fs, char *path, NULL);
+    Inode *inode = fs_pathresolve(fs, path, NULL);
     if (inode) inode_data_remove(fs, inode);
 }
-
 
 
 /* End File helpers ------------------------------------------------------- */
