@@ -212,6 +212,19 @@ size_t memblock_data_get(FSHandle *fs, MemHead *memhead, char *buf) {
 /* Begin inode helpers --------------------------------------------------- */
 
 
+// Sets the last access time for the given node to the current time.
+// If set_modified, also sets the last modified time to the current time.
+static void inode_lasttimes_set(Inode *inode, int set_modified) {
+    if (!inode) return;
+
+    struct timespec tspec;
+    clock_gettime(CLOCK_REALTIME, &tspec);
+
+    inode->last_acc = &tspec;
+    if (set_modified)
+        inode->last_mod = &tspec;
+}
+
 // Returns 1 if the given inode is for a directory, else 0
 static int inode_isdir(Inode *inode) {
     if (inode->is_dir == 0)
@@ -295,7 +308,21 @@ static size_t inodes_numfree(FSHandle *fs) {
     return num_free;
 }
 
-/* End inode "free" helpers ---------------------------------------------- */
+/* End inode helpers ----------------------------------------------------- */
+/* Begin String Helpers -------------------------------------------------- */
+
+
+// Returns a size_t denoting the given null-terminated string's length.
+size_t str_len(char *arr) {
+    int length = 0;
+    for (char *c = arr; *c != '\0'; c++)
+        length++;
+
+    return length;
+}
+
+
+/* End String Helpers ---------------------------------------------------- */
 /* Begin filesystem helpers ---------------------------------------------- */
 
 
@@ -310,22 +337,73 @@ static Inode* fs_rootnode_get(FSHandle *fs) {
     return fs->inode_seg;
 }
 
+// Returns a handle to a filesystem of size fssize onto fsptr.
+// If the fsptr not yet intitialized as a file system, it is formatted first.
+static FSHandle* fs_init(void *fsptr, size_t size) {
+    // Validate file system size
+    if (size < MIN_FS_SZ_B) {
+        printf("ERROR: Received an invalid file system size.\n");
+        return NULL;
+    }
 
-/* End filesystem helpers ------------------------------------------------ */
-/* Begin String Helpers -------------------------------------------------- */
+    // Map file system structure onto the given memory space
+    FSHandle *fs = (FSHandle*)fsptr;
 
+    size_t fs_size = size - FS_START_OFFSET;    // Space available to fs
+    void *segs_start = fsptr + FS_START_OFFSET; // Start of fs's segments
+    void *memblocks_seg = NULL;                 // Mem block segment start addr
+    int n_inodes = 0;                           // Num inodes fs contains
+    int n_blocks = 0;                           // Num memblocks fs contains
 
-// Returns a size_t denoting the given null-terminated string's length.
-size_t str_len(char *arr) {
-    int length = 0;
-    for (char *c = arr; *c != '\0'; c++)
-        length++;
+    // Determine num inodes & memblocks that will fit in the given size
+    while (n_blocks * DATAFIELD_SZ_B + n_inodes * ST_SZ_INODE < fs_size) {
+        n_inodes++;
+        n_blocks += BLOCKS_TO_INODES;
+    }
+    
+    // Denote memblocks addr & offset
+    memblocks_seg = segs_start + (ST_SZ_INODE * n_inodes);
+    
+    // If first bytes aren't our magic number, format the mem space for the fs
+    if (fs->magic != MAGIC_NUM) {
+        printf(" INFO: Formatting new filesystem of size %lu bytes.\n", size);
+        
+        // Format mem space w/zero-fill
+        memset(fsptr, 0, fs_size);
 
-    return length;
+        // Populate fs data members
+        fs->magic = MAGIC_NUM;
+        fs->size_b = fs_size;
+        fs->num_inodes = n_inodes;
+        fs->num_memblocks = n_blocks;
+        fs->inode_seg = (Inode*) segs_start;
+        fs->mem_seg = (MemHead*) memblocks_seg;
+
+        // Set up 0th inode as the root directory having path FS_PATH_SEP
+        Inode *root_inode = fs_rootnode_get(fs);
+        strncpy(root_inode->name, FS_PATH_SEP, str_len(FS_PATH_SEP));
+        *(int*)(&root_inode->is_dir) = 1;
+        *(int*)(&root_inode->subdirs) = 0;
+        fs->inode_seg->offset_firstblk = (size_t*) (memblocks_seg - fsptr);
+        *(int*)(&fs->mem_seg->not_free) = 1;
+        inode_lasttimes_set(root_inode, 1);
+    } 
+
+    // Otherwise, file system already intitialized, just populate the handle
+    else {
+        fs->size_b = fs_size;
+        fs->num_inodes = n_inodes;
+        fs->num_memblocks = n_blocks;
+        fs->inode_seg = (Inode*) segs_start;
+        fs->mem_seg = (MemHead*) memblocks_seg;
+    }
+
+    return fs;  // Return the handle to the file system
 }
 
 
-/* Begin Filesys Debug stmts  --------------------------------------------- */
+/* End filesystem helpers ------------------------------------------------ */
+/* Begin Debug stmts  ---------------------------------------------------- */
 
 typedef long unsigned int lui; // For shorthand convenience
 

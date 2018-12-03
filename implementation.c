@@ -58,31 +58,32 @@
 
 
 /* End File System Documentation ------------------------------------------ */
-/* Begin Function Prototypes ---------------------------------------------- */
+/* Begin Filesystem Helpers ----------------------------------------------- */
 
 
-static Inode* fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr);
-static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel);
-
-
-/* End Function Prototypes ------------------------------------------------ */
-/* Begin Inode helpers ---------------------------------------------------- */
-
-// TODO: static void inode_free(FSHandle *fs, Inode *inode)
-
-// Sets the last access time for the given node to the current time.
-// If set_modified, also sets the last modified time to the current time.
-static void inode_lasttimes_set(Inode *inode, int set_modified) {
-    if (!inode) return;
-
-    struct timespec tspec;
-    clock_gettime(CLOCK_REALTIME, &tspec);
-
-    inode->last_acc = &tspec;
-    if (set_modified)
-        inode->last_mod = &tspec;
+// Returns a handle to a myfs filesystem on success.
+// On fail, sets errnoptr to EFAULT and returns NULL.
+static FSHandle *fs_handle(void *fsptr, size_t fssize, int *errnoptr) {
+    FSHandle *fs = fs_init(fsptr, fssize);
+    if (!fs && errnoptr) *errnoptr = EFAULT;
+    return fs;
 }
 
+// A debug function to simulate a pathresolve() call. 
+// Returns some hardcoded test inode (ex: the root dir).
+// On fail, sets errnoptr to ENOENT and returns NULL.
+// TODO: actual fs_pathresolve()
+static Inode *fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr) {
+    Inode *inode = fs->inode_seg;
+    if (!inode && errnoptr) *errnoptr = ENOENT;
+    return inode;
+}
+
+/* End Filesystem Helpers ------------------------------------------------- */
+/* Begin Inode helpers ---------------------------------------------------- */
+
+
+// TODO: static void inode_free(FSHandle *fs, Inode *inode)
 
 // Populates buf with a string representing the given inode's data.
 // Returns: The size of the data at buf.
@@ -207,74 +208,6 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
 
 
 /* End Inode helpers ------------------------------------------------------ */
-/* Begin File helpers ------------------------------------------------------ */
-
-
-// Creates a new file in the fs having the given properties.
-// Note: path is parent dir path, fname is the file name. Ex: '/' and 'file1'.
-// Returns: A ptr to the newly created file's I-node (or NULL on fail).
-static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
-                       size_t data_sz) {
-    Inode *parentdir_inode = fs_pathresolve(fs, path, NULL);
-    
-    if(dir_subitem_get(fs, parentdir_inode, fname) != NULL) {
-        printf("ERROR: File %s already exists\n", fname);
-        return NULL;
-    }
-
-    if (memblocks_numfree(fs) <  data_sz / DATAFIELD_SZ_B) {
-        printf("ERROR: Insufficient free memblocks for new file %s\n", fname);
-        return NULL;
-    }
-
-    Inode *inode = inode_nextfree(fs);
-    if (!inode) {
-        printf("ERROR: Failed getting free inode for new file %s\n", fname);
-        return NULL;
-    }
-
-    MemHead *memblock = memblock_nextfree(fs);
-    if (!memblock) {
-        printf("ERROR: Failed getting free memblock for new file %s\n", fname);
-        return NULL;
-    }
-
-    if (!inode_name_set(inode, fname)) {
-        printf("ERROR: Invalid filemame for new file %s\n", fname);
-        return NULL;
-    }
-    
-    // Associate first memblock with the inode (by it's offset)
-    size_t offset_firstblk = offset_from_ptr(fs, (void*)memblock);
-    inode->offset_firstblk = (size_t*)offset_firstblk;
-    inode_data_set(fs, inode, data, data_sz);
-    
-    // TODO: Update file's parent directory to include this file
-    // TODO: as well as Update parent inode dir data.
-    // TODO: (Waiting on file_resolvepath())
-
-    return inode;
-}
-
-// Populates buf with the file's data and returns len(buf).
-static size_t file_data_get(FSHandle *fs, char *path, char *buf) {
-    Inode *inode = fs_pathresolve(fs, path, NULL);
-    return inode_data_get(fs, inode, buf);
-}
-
-// Removes the data from the given file, formatting memblocks, etc., as needed.
-static void file_data_remove(FSHandle *fs, char *path) {
-    Inode *inode = fs_pathresolve(fs, path, NULL);
-    if (inode) inode_data_remove(fs, inode);
-}
-
-static int file_data_append(FSHandle *fs, char *path, char *append_data) {
-    Inode *inode = fs_pathresolve(fs, path, NULL);
-    return inode_data_append(fs, inode, append_data);
-}
-
-
-/* End File helpers ------------------------------------------------------- */
 /* Begin Directory helpers ------------------------------------------------ */
 
 
@@ -393,93 +326,76 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     return newdir_inode;
 }
 
+
 /* End Directory helpers ------------------------------------------------- */
-/* Begin Filesystem Helpers ---------------------------------------------- */
+/* Begin File helpers ------------------------------------------------------ */
 
 
-// Returns a handle to a filesystem of size fssize onto fsptr.
-// If the fsptr not yet intitialized as a file system, it is formatted first.
-static FSHandle* fs_init(void *fsptr, size_t size) {
-    // Validate file system size
-    if (size < MIN_FS_SZ_B) {
-        printf("ERROR: Received an invalid file system size.\n");
+// Creates a new file in the fs having the given properties.
+// Note: path is parent dir path, fname is the file name. Ex: '/' and 'file1'.
+// Returns: A ptr to the newly created file's I-node (or NULL on fail).
+static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
+                       size_t data_sz) {
+    Inode *parentdir_inode = fs_pathresolve(fs, path, NULL);
+    
+    if(dir_subitem_get(fs, parentdir_inode, fname) != NULL) {
+        printf("ERROR: File %s already exists\n", fname);
         return NULL;
     }
 
-    // Map file system structure onto the given memory space
-    FSHandle *fs = (FSHandle*)fsptr;
-
-    size_t fs_size = size - FS_START_OFFSET;    // Space available to fs
-    void *segs_start = fsptr + FS_START_OFFSET; // Start of fs's segments
-    void *memblocks_seg = NULL;                 // Mem block segment start addr
-    int n_inodes = 0;                           // Num inodes fs contains
-    int n_blocks = 0;                           // Num memblocks fs contains
-
-    // Determine num inodes & memblocks that will fit in the given size
-    while (n_blocks * DATAFIELD_SZ_B + n_inodes * ST_SZ_INODE < fs_size) {
-        n_inodes++;
-        n_blocks += BLOCKS_TO_INODES;
-    }
-    
-    // Denote memblocks addr & offset
-    memblocks_seg = segs_start + (ST_SZ_INODE * n_inodes);
-    
-    // If first bytes aren't our magic number, format the mem space for the fs
-    if (fs->magic != MAGIC_NUM) {
-        printf(" INFO: Formatting new filesystem of size %lu bytes.\n", size);
-        
-        // Format mem space w/zero-fill
-        memset(fsptr, 0, fs_size);
-
-        // Populate fs data members
-        fs->magic = MAGIC_NUM;
-        fs->size_b = fs_size;
-        fs->num_inodes = n_inodes;
-        fs->num_memblocks = n_blocks;
-        fs->inode_seg = (Inode*) segs_start;
-        fs->mem_seg = (MemHead*) memblocks_seg;
-
-        // Set up 0th inode as the root directory having path FS_PATH_SEP
-        Inode *root_inode = fs_rootnode_get(fs);
-        strncpy(root_inode->name, FS_PATH_SEP, str_len(FS_PATH_SEP));
-        *(int*)(&root_inode->is_dir) = 1;
-        *(int*)(&root_inode->subdirs) = 0;
-        fs->inode_seg->offset_firstblk = (size_t*) (memblocks_seg - fsptr);
-        inode_data_set(fs, fs->inode_seg, "", 1);
-    } 
-
-    // Otherwise, file system already intitialized, just populate the handle
-    else {
-        fs->size_b = fs_size;
-        fs->num_inodes = n_inodes;
-        fs->num_memblocks = n_blocks;
-        fs->inode_seg = (Inode*) segs_start;
-        fs->mem_seg = (MemHead*) memblocks_seg;
+    if (memblocks_numfree(fs) <  data_sz / DATAFIELD_SZ_B) {
+        printf("ERROR: Insufficient free memblocks for new file %s\n", fname);
+        return NULL;
     }
 
-    return fs;  // Return the handle to the file system
-}
+    Inode *inode = inode_nextfree(fs);
+    if (!inode) {
+        printf("ERROR: Failed getting free inode for new file %s\n", fname);
+        return NULL;
+    }
 
+    MemHead *memblock = memblock_nextfree(fs);
+    if (!memblock) {
+        printf("ERROR: Failed getting free memblock for new file %s\n", fname);
+        return NULL;
+    }
 
-// Returns a handle to a myfs filesystem on success.
-// On fail, sets errnoptr to EFAULT and returns NULL.
-static FSHandle *fs_handle(void *fsptr, size_t fssize, int *errnoptr) {
-    FSHandle *fs = fs_init(fsptr, fssize);
-    if (!fs) *errnoptr = EFAULT;
-    return fs;
-}
+    if (!inode_name_set(inode, fname)) {
+        printf("ERROR: Invalid filemame for new file %s\n", fname);
+        return NULL;
+    }
+    
+    // Associate first memblock with the inode (by it's offset)
+    size_t offset_firstblk = offset_from_ptr(fs, (void*)memblock);
+    inode->offset_firstblk = (size_t*)offset_firstblk;
+    inode_data_set(fs, inode, data, data_sz);
+    
+    // TODO: Update file's parent directory to include this file
+    // TODO: as well as Update parent inode dir data.
+    // TODO: (Waiting on file_resolvepath())
 
-// A debug function to simulate a pathresolve() call. 
-// Returns some hardcoded test inode (ex: the root dir).
-// On fail, sets errnoptr to ENOENT and returns NULL.
-// TODO: actual fs_pathresolve()
-static Inode *fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr) {
-    Inode *inode = fs->inode_seg;
-    if (!inode && errnoptr) *errnoptr = ENOENT;
     return inode;
 }
 
-/* End Filesystem Helpers ------------------------------------------------- */
+// Populates buf with the file's data and returns len(buf).
+static size_t file_data_get(FSHandle *fs, char *path, char *buf) {
+    Inode *inode = fs_pathresolve(fs, path, NULL);
+    return inode_data_get(fs, inode, buf);
+}
+
+// Removes the data from the given file and updates the necessary fs properties.
+static void file_data_remove(FSHandle *fs, char *path) {
+    Inode *inode = fs_pathresolve(fs, path, NULL);
+    if (inode) inode_data_remove(fs, inode);
+}
+
+static int file_data_append(FSHandle *fs, char *path, char *append_data) {
+    Inode *inode = fs_pathresolve(fs, path, NULL);
+    return inode_data_append(fs, inode, append_data);
+}
+
+
+/* End File helpers ------------------------------------------------------- */
 /* Begin Our 13 implementations ------------------------------------------- */
 
 
