@@ -456,6 +456,7 @@ static Inode *fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr) {
 
 
 /* -- __myfs_getattr_implem() -- */
+// TODO: Ready for testing.
 /* Implements the "stat" system call on the filesystem 
 
    Accepts:
@@ -478,25 +479,18 @@ static Inode *fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr) {
             st_mtim       Last modified time
             mode_t        File type/mode as S_IFDIR | 0755 for directories,
                                             S_IFREG | 0755 for files
-
-   Example usage:
-      struct fuse_context *context = fuse_get_context();
-      struct __myfs_environment_struct_t *env;
-      env = (struct __myfs_environment_struct_t *) (context->private_data);
-      return THIS(env->memory, env->size, &err, env->uid, env->gid, path, st);
 */
 int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
                           uid_t uid, gid_t gid,
-                          const char *path, struct stat *stbuf) {
-    // Get a handle to the filesystem 
-    FSHandle *fs;   // Handle to the file system
-    Inode *inode;   // Ptr to the inode for the given path
-    fs = fs_handle(fsptr, fssize, errnoptr);    // Bind filesys to memory
-    if (!fs) return -1;                         // Fail: Bad fsptr or fssize  
+                          const char *path, struct stat *stbuf) {                          
+    FSHandle *fs;       // Handle to the file system
+    Inode *inode;       // Inode for the given path
 
-    // Ge the inode for the given path
-    inode = fs_pathresolve(fs, path, errnoptr); // Get file or dir inode
-    if (!inode) return -1;                      // Fail - bad path given
+    // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
+    if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
+
+    // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
+    if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;
 
     //Reset the memory of the results container
     memset(stbuf, 0, sizeof(struct stat));   
@@ -557,8 +551,18 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
                           const char *path, char ***namesptr) {
-  /* STUB */
-  return -1;
+    FSHandle *fs;       // Handle to the file system
+    Inode *inode;       // Inode for the given path
+
+    // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
+    if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
+
+    // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
+    if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;
+
+    /* STUB */
+    
+    return -1;
 }
 
 /* Implements an emulation of the mknod system call for regular files
@@ -578,9 +582,20 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
    The error codes are documented in man 2 mknod.
 
 */
-int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr, const char *path) {
-  /* STUB */
-  return -1;
+int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
+                        const char *path) {
+    FSHandle *fs;       // Handle to the file system
+    Inode *inode;       // Inode for the given path
+
+    // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
+    if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
+
+    // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
+    if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;
+
+    /* STUB */
+    
+    return -1;
 }
 
 /* Implements an emulation of the unlink system call for regular files
@@ -597,8 +612,18 @@ int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr, const char *p
 */
 int __myfs_unlink_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
-  /* STUB */
-  return -1;
+    FSHandle *fs;       // Handle to the file system
+    Inode *inode;       // Inode for the given path
+
+    // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
+    if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
+
+    // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
+    if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;
+
+    /* STUB */
+    
+    return -1;
 }
 
 /* Implements an emulation of the rmdir system call on the filesystem 
@@ -618,8 +643,18 @@ int __myfs_unlink_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_rmdir_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
-  /* STUB */
-  return -1;
+    FSHandle *fs;       // Handle to the file system
+    Inode *inode;       // Inode for the given path
+
+    // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
+    if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
+
+    // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
+    if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;
+
+    /* STUB */
+    
+    return -1;
 }
 
 /* Implements an emulation of the mkdir system call on the filesystem 
@@ -636,8 +671,18 @@ int __myfs_rmdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
-  /* STUB */
-  return -1;
+    FSHandle *fs;       // Handle to the file system
+    Inode *inode;       // Inode for the given path
+
+    // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
+    if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
+
+    // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
+    if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;
+
+    /* STUB */
+    
+    return -1;
 }
 
 /* Implements an emulation of the rename system call on the filesystem 
@@ -658,8 +703,14 @@ int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
                          const char *from, const char *to) {
-  /* STUB */
-  return -1;
+    FSHandle *fs;           // Handle to the file system
+
+    // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
+    if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
+
+    /* STUB */
+    
+    return -1;
 }
 
 /* Implements an emulation of the truncate system call on the filesystem 
@@ -680,10 +731,22 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
                            const char *path, off_t offset) {
-  /* STUB */
-  return -1;
+    FSHandle *fs;       // Handle to the file system
+    Inode *inode;       // Inode for the given path
+
+    // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
+    if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
+
+    // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
+    if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;
+
+    /* STUB */
+    
+    return -1;
 }
 
+/* -- __myfs_open_implem() -- */
+// TODO: Ready for testing.
 /* Implements an emulation of the open system call on the filesystem 
    of size fssize pointed to by fsptr, without actually performing the opening
    of the file (no file descriptor is returned).
@@ -712,8 +775,17 @@ int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_open_implem(void *fsptr, size_t fssize, int *errnoptr,
                        const char *path) {
-  /* STUB */
-  return -1;
+    FSHandle *fs;       // Handle to the file system
+    Inode *inode;       // Inode for the given path
+
+    // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
+    if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
+
+    // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
+    if ((!(fs_pathresolve(fs, path, errnoptr)))) 
+        return -1;  // Fail
+    else
+        return 0;   // Success
 }
 
 /* Implements an emulation of the read system call on the filesystem 
@@ -733,8 +805,18 @@ int __myfs_open_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
                        const char *path, char *buf, size_t size, off_t offset) {
-  /* STUB */
-  return -1;
+    FSHandle *fs;       // Handle to the file system
+    Inode *inode;       // Inode for the given path
+
+    // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
+    if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
+
+    // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
+    if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;
+
+    /* STUB */
+    
+    return -1;
 }
 
 /* Implements an emulation of the write system call on the filesystem 
@@ -754,8 +836,18 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path, const char *buf, size_t size, off_t offset) {
-  /* STUB */
-  return -1;
+    FSHandle *fs;       // Handle to the file system
+    Inode *inode;       // Inode for the given path
+
+    // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
+    if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
+
+    // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
+    if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;
+
+    /* STUB */
+    
+    return -1;
 }
 
 /* Implements an emulation of the utimensat system call on the filesystem 
@@ -773,8 +865,18 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_utimens_implem(void *fsptr, size_t fssize, int *errnoptr,
                           const char *path, const struct timespec ts[2]) {
-  /* STUB */
-  return -1;
+    FSHandle *fs;       // Handle to the file system
+    Inode *inode;       // Inode for the given path
+
+    // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
+    if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
+
+    // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
+    if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;
+
+    /* STUB */
+    
+    return -1;
 }
 
 /* Implements an emulation of the statfs system call on the filesystem 
@@ -802,8 +904,14 @@ int __myfs_utimens_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
                          struct statvfs* stbuf) {
-  /* STUB */
-  return -1;
+    FSHandle *fs;       // Handle to the file system
+
+    // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
+    if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
+
+    /* STUB */
+    
+    return -1;
 }
 
 /* End Our 13 implementations  -------------------------------------------- */
