@@ -461,18 +461,23 @@ static FSHandle* fs_gethandle(void *fsptr, size_t size) {
       env = (struct __myfs_environment_struct_t *) (context->private_data);
       return THIS(env->memory, env->size, &err, env->uid, env->gid, path, st);
 */
+
+// Returns a handle to a myfs filesystem on success.
+// On fail, sets errnoptr to EFAULT and returns NULL.
+static FSHandle *fs_bind(void *fsptr, size_t fssize, int *errnoptr) {
+    FSHandle *fs = fs_gethandle(fsptr, fssize);
+    if (!fs) *errnoptr = EFAULT;
+    return fs;
+}
+
 int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
                           uid_t uid, gid_t gid,
                           const char *path, struct stat *stbuf) {
     FSHandle *fs;   // Handle to the file system
     Inode *inode;   // Ptr to the inode for the given path
 
-    // Bind fs to the filesystem
-    fs = fs_gethandle(fsptr, fssize);
-    if (!fs) {
-        *errnoptr = EFAULT;
-        return -1;  // Fail - bad fsptr or fssize given
-    }    
+    fs = fs_bind(fsptr, fssize, errnoptr); // Bind fs to the filesystem
+    if (!fs) return -1;                    // Fail: bad fsptr or fssize given   
 
     // TODO: inode = path_resolve(fs, path) instead of fs->inode_seg
     inode = fs->inode_seg;
