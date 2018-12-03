@@ -10,7 +10,7 @@
 /* Begin Configurables  -------------------------------------------------- */
 
 
-#define FS_BLOCK_SZ_KB (.25)                // Total kbs of each memory block
+#define FS_BLOCK_SZ_KB (1)                  // Total kbs of each memory block
 #define FNAME_MAXLEN (256)                  // Max length of any filename
 #define BLOCKS_TO_INODES (1)                // Num of mem blocks to each inode
 
@@ -64,7 +64,7 @@ typedef struct FSHandle {
 #define ST_SZ_MEMHEAD sizeof(MemHead)
 #define ST_SZ_FSHANDLE sizeof(FSHandle)  
 
-// Size of each memory block's data field (after kb aligning w/header) 
+// Size of each memory block's data field
 #define DATAFIELD_SZ_B (FS_BLOCK_SZ_KB * BYTES_IN_KB - sizeof(MemHead))    
 
 // Memory block size = MemHead + data field of size DATAFIELD_SZ_B
@@ -309,8 +309,8 @@ void print_struct_debug() {
     printf("    FSHandle        : %lu bytes\n", ST_SZ_FSHANDLE);
     printf("    Inode           : %lu bytes\n", ST_SZ_INODE);
     printf("    MemHead         : %lu bytes\n", ST_SZ_MEMHEAD);
-    printf("    Data Field      : %f bytes\n", DATAFIELD_SZ_B);
-    printf("    Memory Block    : %f bytes (%lu kb)\n", 
+    printf("    Data Field      : %lu bytes\n", DATAFIELD_SZ_B);
+    printf("    Memory Block    : %lu bytes (%lu kb)\n", 
            MEMBLOCK_SZ_B,
            bytes_to_kb(MEMBLOCK_SZ_B));
 }

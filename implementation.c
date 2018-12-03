@@ -68,6 +68,7 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel);
 /* End Function Prototypes ------------------------------------------------ */
 /* Begin Inode helpers ---------------------------------------------------- */
 
+// TODO: static void inode_free(FSHandle *fs, Inode *inode)
 
 // Returns a ptr to the given inode's first memory block, or NULL if none.
 static MemHead* inode_firstmemblock(FSHandle *fs, Inode *inode) {
@@ -204,13 +205,26 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
     free(data);
 }
 
-// Disassociates any data from inode and formats the previously used memblocks.
-// Note: Does not assign the inode a new free first memblock.
+// Disassociates any data from inode, formats any previously used memblocks,
+// and assign the inode a new free first memblock.
 static void inode_data_remove(FSHandle *fs, Inode *inode) {
     MemHead *memblock = inode_firstmemblock(fs, inode);
+    MemHead *block_next;     // ptr to memblock->offset_nextblk
+    void *block_end;        // End of memblock's data field
 
-    if (!memblock)
-        return;
+     // Format each memblock of the inode's data
+    do {
+        block_next = (MemHead*)ptr_from_offset(fs, memblock->offset_nextblk);
+        block_end = (void*)memblock + MEMBLOCK_SZ_B;         // End of memblock
+        memset(memblock, 0, (block_end - (void*)memblock));  // Format memblock
+        memblock = (MemHead*)block_next;    // Advance to next block in sequence
+        
+    } while (block_next != (MemHead*)fs);  // i.e. memblock->offset_nextblk == 0
+
+    // Update the inode to reflect disassociation and new memblock.
+    inode->file_size_b = 0;
+    inode->offset_firstblk = (size_t*)offset_from_ptr(fs, memblock_nextfree(fs));
+    inode_setlasttime(inode, 1);
 }
 
 /* End Inode helpers ------------------------------------------------------ */
@@ -938,7 +952,7 @@ int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
 
 // Print memory block stats
 void print_memblock_debug(FSHandle *fs, MemHead *memhead) {
-    printf("Memory Block -\n");
+    printf("\nMemory Block -\n");
     printf("    addr            : %lu\n", (lui)memhead);
     printf("    offset          : %lu\n", (lui)offset_from_ptr(fs, memhead));
     printf("    not_free        : %lu\n", (lui)memhead->not_free);
@@ -1037,6 +1051,7 @@ int main()
     // File1
     printf("\n\nExamining /dir1/file1 ");
     print_inode_debug(fs, file1);
+
 
     // File 2
     printf("\n\nExamining /file2 ");
