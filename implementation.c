@@ -57,17 +57,16 @@
 /* Begin Function Prototypes ---------------------------------------------- */
 
 
-// Function prototypes
-
-
 /* End Function Prototypes ------------------------------------------------ */
 /* Begin Inode helpers ---------------------------------------------------- */
 
 
+// TODO: static char *inode_data_remove(FSHandle *fs, Inode *inode, char *buf)
+
 // Sets the last access time for the given node to the current time.
 // If set_modified, also sets the last modified time to the current time.
 static void inode_setlasttime(Inode *inode, int set_modified) {
-    if (!inode) return;  // Validate node
+    if (!inode) return;
 
     struct timespec tspec;
     clock_gettime(CLOCK_REALTIME, &tspec);
@@ -75,43 +74,6 @@ static void inode_setlasttime(Inode *inode, int set_modified) {
     inode->last_acc = &tspec;
     if (set_modified)
         inode->last_mod = &tspec;
-}
-
-// Returns 1 if the given inode is free, else returns 0.
-static int inode_isfree(Inode *inode) {
-    if (inode->offset_firstblk == 0)
-        return 1;
-    return 0;
-}
-
-// Returns the first free inode in the given filesystem
-static Inode* inode_nextfree(FSHandle *fs) {
-    Inode *inode = fs->inode_seg;
-    size_t num_inodes = fs->num_inodes;
-
-    for (int i = 0; i < num_inodes; i++)
-    {
-        if (inode_isfree(inode))
-            return inode;
-
-        inode++; // ptr arithmetic
-    }
-    return NULL;
-}
-
-// Returns the number of free inodes in the filesystem
-static size_t inodes_numfree(FSHandle *fs) {
-    Inode *inode = fs->inode_seg;
-    size_t num_inodes = fs->num_inodes;
-    size_t num_free = 0;
-
-    for (int i = 0; i < num_inodes; i++) {
-        if (inode_isfree(inode))
-            num_free++;
-
-        inode++; // ptr arithmetic
-    }
-    return num_free;
 }
 
 // Sets the file or directory name (of length sz) for the given inode.
@@ -830,21 +792,6 @@ int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
 /* End Our 13 implementations  -------------------------------------------- */
 /* Begin DEBUG  ----------------------------------------------------------- */
 
-
-// Print filesystem data structure sizes
-void print_struct_debug() {
-    printf("File system's data structures:\n");
-    printf("    FSHandle        : %lu bytes\n", ST_SZ_FSHANDLE);
-    printf("    Inode           : %lu bytes\n", ST_SZ_INODE);
-    printf("    MemHead         : %lu bytes\n", ST_SZ_MEMHEAD);
-    printf("    Data Field      : %f bytes\n", DATAFIELD_SZ_B);
-    printf("    Memory Block    : %f bytes (%lu kb)\n", 
-           MEMBLOCK_SZ_B,
-           bytes_to_kb(MEMBLOCK_SZ_B));
-}
-
-typedef long unsigned int lui; // Shorthand convenience
-
 // Print memory block stats
 void print_memblock_debug(FSHandle *fs, MemHead *memhead) {
     printf("Memory Block -\n");
@@ -859,10 +806,8 @@ void print_memblock_debug(FSHandle *fs, MemHead *memhead) {
 // Print inode stats
 void print_inode_debug(FSHandle *fs, Inode *inode) {
 
-    if (inode == NULL) {
+    if (inode == NULL)
         printf("    FAIL: inode is NULL.\n");
-        return;
-    }
 
     char *buf = malloc(0);
     size_t sz = inode_data_get(fs, inode, buf);
@@ -884,25 +829,8 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
     else
         printf("NONE"); 
 
-    // free(buf);  // TODO: This causes crazieness
+    // free(buf);  // TODO: This causes unexpected behavior
 }
-
-
-// Print filesystem stats
-void print_fs_debug(FSHandle *fs) {
-    printf("File system properties: \n");
-    printf("    fs (fsptr)      : %lu\n", (lui)fs);
-    printf("    fs->num_inodes  : %lu\n", (lui)fs->num_inodes);
-    printf("    fs->num_memblks : %lu\n", (lui)fs->num_memblocks);
-    printf("    fs->size_b      : %lu (%lu kb)\n", fs->size_b, bytes_to_kb(fs->size_b));
-    printf("    fs->inode_seg   : %lu\n", (lui)fs->inode_seg);
-    printf("    fs->mem_seg     : %lu\n", (lui)fs->mem_seg);
-    printf("    Num Inodes      : %lu\n", inodes_numfree(fs));
-    printf("    Num Memblocks   : %lu\n", memblocks_numfree(fs));
-    printf("    Free space      : %lu bytes (%lu kb)\n", fs_freespace(fs), bytes_to_kb(fs_freespace(fs)));
-}
-
-
 
 int main() 
 {

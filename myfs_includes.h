@@ -76,7 +76,7 @@ typedef struct FSHandle {
 #define FS_START_OFFSET sizeof(FSHandle)
 
 
-/* End FS Definitions ------------------------------------------------------- */
+/* End FS Definitions ----------------------------------------------------- */
 /* Begin ptr/bytes helpers ------------------------------------------------ */
 
 // Returns a ptr to a mem address in the file system given an offset.
@@ -208,6 +208,46 @@ size_t memblock_data_get(FSHandle *fs, MemHead *memhead, char *buf) {
 
 
 /* End Memblock helpers -------------------------------------------------- */
+/* Begin inode "free" helpers -------------------------------------------- */
+
+// Returns 1 if the given inode is free, else returns 0.
+static int inode_isfree(Inode *inode) {
+    if (inode->offset_firstblk == 0)
+        return 1;
+    return 0;
+}
+
+// Returns the first free inode in the given filesystem
+static Inode* inode_nextfree(FSHandle *fs) {
+    Inode *inode = fs->inode_seg;
+    size_t num_inodes = fs->num_inodes;
+
+    for (int i = 0; i < num_inodes; i++)
+    {
+        if (inode_isfree(inode))
+            return inode;
+
+        inode++;
+    }
+    return NULL;
+}
+
+// Returns the number of free inodes in the filesystem
+static size_t inodes_numfree(FSHandle *fs) {
+    Inode *inode = fs->inode_seg;
+    size_t num_inodes = fs->num_inodes;
+    size_t num_free = 0;
+
+    for (int i = 0; i < num_inodes; i++) {
+        if (inode_isfree(inode))
+            num_free++;
+
+        inode++; // ptr arithmetic
+    }
+    return num_free;
+}
+
+/* End inode "free" helpers ---------------------------------------------- */
 /* Begin filesystem helpers ---------------------------------------------- */
 
 
@@ -257,6 +297,41 @@ static int file_name_isvalid(char *fname) {
     if (len)
         return 1;
 }
+
+/* Begin Filesys Debug stmts  --------------------------------------------- */
+
+typedef long unsigned int lui; // For shorthand convenience
+
+// Print filesystem data structure sizes
+void print_struct_debug() {
+    printf("File system's data structures:\n");
+    printf("    FSHandle        : %lu bytes\n", ST_SZ_FSHANDLE);
+    printf("    Inode           : %lu bytes\n", ST_SZ_INODE);
+    printf("    MemHead         : %lu bytes\n", ST_SZ_MEMHEAD);
+    printf("    Data Field      : %f bytes\n", DATAFIELD_SZ_B);
+    printf("    Memory Block    : %f bytes (%lu kb)\n", 
+           MEMBLOCK_SZ_B,
+           bytes_to_kb(MEMBLOCK_SZ_B));
+}
+
+// Print filesystem stats
+void print_fs_debug(FSHandle *fs) {
+    printf("File system properties: \n");
+    printf("    fs (fsptr)      : %lu\n", (lui)fs);
+    printf("    fs->num_inodes  : %lu\n", (lui)fs->num_inodes);
+    printf("    fs->num_memblks : %lu\n", (lui)fs->num_memblocks);
+    printf("    fs->size_b      : %lu (%lu kb)\n", fs->size_b, bytes_to_kb(fs->size_b));
+    printf("    fs->inode_seg   : %lu\n", (lui)fs->inode_seg);
+    printf("    fs->mem_seg     : %lu\n", (lui)fs->mem_seg);
+    printf("    Num Inodes      : %lu\n", inodes_numfree(fs));
+    printf("    Num Memblocks   : %lu\n", memblocks_numfree(fs));
+    printf("    Free space      : %lu bytes (%lu kb)\n", fs_freespace(fs), bytes_to_kb(fs_freespace(fs)));
+}
+
+
+/* End Filesys Debug stmts  ------------------------------------------------*/
+
+
 
 
 /* End String helpers ----------------------------------------------------- */
