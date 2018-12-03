@@ -475,7 +475,7 @@ static FSHandle *fs_handle(void *fsptr, size_t fssize, int *errnoptr) {
 // TODO: actual fs_pathresolve()
 static Inode *fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr) {
     Inode *inode = fs->inode_seg;
-    if (!inode) *errnoptr = ENOENT;
+    if (!inode && errnoptr) *errnoptr = ENOENT;
     return inode;
 }
 
