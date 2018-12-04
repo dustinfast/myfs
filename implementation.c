@@ -59,7 +59,7 @@
 
 /* End File System Documentation ------------------------------------------ */
 /* Begin Filesystem Helpers ----------------------------------------------- */
-
+Inode* resolve_path(FSHandle *fs, const char *path);
 
 // Returns a handle to a myfs filesystem on success.
 // On fail, sets errnoptr to EFAULT and returns NULL.
@@ -372,6 +372,18 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     inode_data_set(fs, inode, data, data_sz);
     
     // TODO: Update file's parent directory to include this file
+    Inode* parent = resolve_path(fs, path);
+    char* dir_entry;
+    strcpy(dir_entry, inode->name);
+    strcat(dir_entry, ":");
+    char* str_offset;
+    sprintf(str_offset, "%ln", inode->offset_firstblk);
+    strcat(dir_entry, str_offset);
+    strcat(dir_entry, "\n");
+    char* previous_entries;
+    inode_data_get(fs, parent, previous_entries);
+    strcat(previous_entries, dir_entry);
+    inode_data_set(fs, parent, previous_entries, strlen(previous_entries));
     // TODO: as well as Update parent inode dir data.
     // TODO: (Waiting on file_resolvepath())
 
@@ -395,6 +407,38 @@ static int file_data_append(FSHandle *fs, char *path, char *append_data) {
     return inode_data_append(fs, inode, append_data);
 }
 
+Inode* resolve_path(FSHandle *fs, const char *path) {
+    Inode* root_dir = fs->inode_seg;
+    // If path is root directory 
+    if (strcmp(path, root_dir->name) == 0) {
+        return root_dir;
+    }
+    char* buf;
+    inode_data_get(fs, root_dir, buf);
+    printf("%s\n", buf);
+    Inode* curr_dir = root_dir;
+    char curr_path_part[strlen(path)];
+    int curr_ind = 1;
+    int path_ind = 0;
+    printf("%s\n", path);
+    while (curr_ind < strlen(path)) {
+        path_ind = 0;
+        while (1) {
+            curr_path_part[path_ind] = path[curr_ind];
+            curr_ind = curr_ind + 1;
+            path_ind = path_ind + 1;
+            if (path[curr_ind] == '/' || path[curr_ind] == '\0') {
+                curr_ind = curr_ind + 1;
+                break;
+            }
+        }
+        curr_path_part[path_ind] = '\0';
+        printf("%s\n", curr_path_part);
+        sleep(1);
+    }
+    return NULL;
+    //printf("%s\n", fs->inode_seg->fname);
+}
 
 /* End File helpers ------------------------------------------------------- */
 /* Begin Our 13 implementations ------------------------------------------- */
@@ -942,6 +986,10 @@ int main()
     Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
     Inode *file1 = file_new(fs, "/dir1", "file1", "hello from file 1", 17);
     Inode *file2 = file_new(fs, "/", "file2", lg_data, data_sz);
+    printf("Resolve root: %s\n", resolve_path(fs, "/")->name);
+    
+    printf("Path traversal test:\n");
+    resolve_path(fs, "/home/test/thirty/seven/file");
 
     ////////////////////////////////////////////////////////////////////////
     // Display test file/directory attributes
