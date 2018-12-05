@@ -186,14 +186,6 @@ size_t memblock_data_get(FSHandle *fs, MemHead *memhead, char *buf) {
         void *buf_writeat = (char *)buf + old_sz;
         memcpy(buf_writeat, memblock_data_field, sz_to_write);
         
-        // Debug
-        // printf("DATA GET SZ: %lu\n", total_sz);
-        // printf("DATA buf: %lu\n", buf);
-        // printf("DATA buf_writeat: %lu\n", buf_writeat);
-        // printf("\nGOT DATA:\n");
-        // write(fileno(stdout), buf, total_sz);
-        // printf("\nGOT RETURNED AT BUF: %lu\n", buf);
-        
         // If on the last (or only) memblock of the sequence, stop iterating
         if (memblock->offset_nextblk == 0) 
             break;
@@ -305,6 +297,7 @@ static size_t inodes_numfree(FSHandle *fs) {
     }
     return num_free;
 }
+
 
 /* End inode helpers ----------------------------------------------------- */
 /* Begin String Helpers -------------------------------------------------- */

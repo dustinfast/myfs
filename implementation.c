@@ -65,8 +65,9 @@
 */
 /* End File System Documentation ------------------------------------------ */
 /* Begin Filesystem Helpers ----------------------------------------------- */
-Inode* resolve_path(FSHandle *fs, const char *path);
-void print_memblock_debug(FSHandle *fs, MemHead *memhead);
+
+
+static Inode* resolve_path(FSHandle *fs, const char *path);  // Prototype
 
 // Returns a handle to a myfs filesystem on success.
 // On fail, sets errnoptr to EFAULT and returns NULL.
@@ -84,6 +85,7 @@ static Inode *fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr) {
     if (!inode && errnoptr) *errnoptr = ENOENT;
     return inode;
 }
+
 
 /* End Filesystem Helpers ------------------------------------------------- */
 /* Begin Inode helpers ---------------------------------------------------- */
@@ -138,9 +140,6 @@ static void inode_data_set(FSHandle *fs, Inode *inode, char *data, size_t sz) {
         *(int*)(&memblock->not_free) = 1;
         memblock->data_size_b = (size_t*) sz;
         memblock->offset_nextblk = 0;
-
-        // printf("\nSET DATA:\n");
-        // write(fileno(stdout), data, sz);
     }
 
     // Else use multiple blocks, if available
@@ -200,14 +199,6 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
     char *data = malloc(*(int*)(&inode->file_size_b) + append_sz + 1);
     data_sz = inode_data_get(fs, inode, data);
     size_t total_sz = data_sz + append_sz;
-    
-    // debug
-    // printf("\n\nDATA for %s:\n", inode->name);
-    // write(fileno(stdout), data, data_sz);
-    // printf("\nAPPENDING:\n");
-    // write(fileno(stdout), append_data, append_sz);
-    // printf("\nAPPEND SZ: '%lu'\n", append_sz);
-    // printf("TOTAL SZ: '%lu'\n", total_sz);
 
     memcpy(data + data_sz, append_data, append_sz);
 
@@ -241,20 +232,17 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
 
     // If subdir does not exist, return NULL
     if(subdir_ptr == NULL) {
-        // printf("INFO: Sub item %s does not exist in %s.\n", itemlabel, inode->name);
         free(curr_data);
         return NULL;
     }
-
-    // else { printf("INFO: Sub item %s exists.\n", itemlabel); }
 
     // Else, extract the subdir's inode offset
     char *offset_ptr = strstr(subdir_ptr, FS_DIRDATA_SEP);
     char *offsetend_ptr = strstr(subdir_ptr, FS_DIRDATA_END);
 
     if (!offset_ptr || !offsetend_ptr) {
-        printf("ERROR: Parse fail - Dir data may be corrupt.\n");
-        printf("Parent: %s Item: %s\n", inode->name, itemlabel);
+        printf("ERROR: Parse fail - Dir data may be corrupt -\n");
+        printf("parent = %s child = %s\n", inode->name, itemlabel);
         free(curr_data);
         return NULL;
     }
@@ -265,7 +253,6 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
     strncpy(offset_str, offset_ptr + 1, offset_sz - 1);  // +/- 1 to exclude sep
     sscanf(offset_str, "%zu", &offset); // Convert offset from str to size_t
 
-    // TODO: Get the inode's ptr and validate it
     Inode *subdir_inode = (Inode*)ptr_from_offset(fs, (size_t*)offset);
 
     // debug
@@ -352,8 +339,6 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
                        size_t data_sz) {
     Inode *parent = resolve_path(fs, path);
 
-    // printf("\nGOT PARENT: %s\n", parent->name);
-
     if (!parent) {
         printf("ERROR: %s is an invalid path\n", fname);
         return NULL;
@@ -436,7 +421,7 @@ static int file_data_append(FSHandle *fs, char *path, char *append_data) {
     return inode_data_append(fs, inode, append_data);
 }
 
-Inode* resolve_path(FSHandle *fs, const char *path) {
+static Inode* resolve_path(FSHandle *fs, const char *path) {
     Inode* root_dir = fs->inode_seg;
 
     // If path is root directory 
