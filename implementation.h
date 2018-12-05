@@ -22,8 +22,7 @@
 #define BYTES_IN_KB (1024)                  // Num bytes in a kb
 #define FS_PATH_SEP ("/")                   // File system's path seperator
 #define FS_DIRDATA_SEP (":")                // Dir data name/offset seperator
-#define FS_DIRDATA_END ("b")               // Dir data name/offset end char
-// #define FS_DIRDATA_END ("\n")               // Dir data name/offset end char
+#define FS_DIRDATA_END ("\n")               // Dir data name/offset end char
 #define MAGIC_NUM (UINT32_C(0xdeadd0c5))    // Num for denoting block init
 
 // Inode -
