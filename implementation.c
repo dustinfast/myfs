@@ -961,11 +961,11 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
     printf("    last_acc            : %09ld\n", inode->last_acc->tv_sec);
     printf("    last_mod            : %09ld\n", inode->last_mod->tv_sec);
     printf("    offset_firstblk     : %lu\n", (lui)inode->offset_firstblk);  
+    print_memblock_debug(fs, inode_firstmemblock(fs, inode));
     // printf("    data size           : %lu\n", sz); 
     // printf("    data: ");
     // write(fileno(stdout), buff, sz);
     // printf("\n");
-    print_memblock_debug(fs, inode_firstmemblock(fs, inode));
 
     // free(buff);
 }
@@ -1007,14 +1007,14 @@ int main()
         else
             *c = 'b';
     }
-    Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
-    Inode *file2 = file_new(fs, "/", "file2", lg_data, data_sz);
 
     // Init test dirs/files
+    Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
     Inode *file1 = file_new(fs, "/dir1", "file1", "hello from file 1", 17);
-    Inode *file3 = file_new(fs, "/dir1", "file3", "hello from file 3", 17);
-    Inode *file4 = file_new(fs, "/dir1", "file4", "hello from file 4", 17);
-    Inode *file5 = file_new(fs, "/dir1", "file5", "hello from file 5", 17);
+    Inode *file2 = file_new(fs, "/dir1", "file3", "hello from file 3", 17);
+    Inode *file3 = file_new(fs, "/dir1", "file4", "hello from file 4", 17);
+    Inode *file4 = file_new(fs, "/dir1", "file5", "hello from file 5", 17);
+    Inode *file5 = file_new(fs, "/", "file5", lg_data, data_sz);
 
     ////////////////////////////////////////////////////////////////////////
     // Display test file/directory attributes
@@ -1027,13 +1027,13 @@ int main()
     printf("\nExamining /dir1 ");
     print_inode_debug(fs, resolve_path(fs, "/dir1"));
 
-    // // File1
+    // File1
     printf("\nExamining /dir1/file1 ");
     print_inode_debug(fs, resolve_path(fs, "/dir1/file1"));
 
-    // // File 2 (screen hog)
-    // printf("\nExamining /file2 ");
-    // print_inode_debug(fs, resolve_path(fs, "/file2"));
+    // File 2 (screen hog)
+    // printf("\nExamining /file5 ");
+    // print_inode_debug(fs, resolve_path(fs, "/file5"));
 
 
     /////////////////////////////////////////////////////////////////////////
