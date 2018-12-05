@@ -227,12 +227,12 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
 
     // If subdir does not exist, return NULL
     if(subdir_ptr == NULL) {
-        // printf("INFO: Sub item %s does not exist.\n", itemlabel); dir_subitem_get
+        printf("INFO: Sub item %s does not exist in %s.\n", itemlabel, inode->name);
         free(curr_data);
         return NULL;
     }
 
-    // else { printf("INFO: Sub item %s exists.\n", itemlabel); } dir_subitem_get
+    else { printf("INFO: Sub item %s exists.\n", itemlabel); }
 
     // Else, extract the subdir's inode offset
     char *offset_ptr = strstr(subdir_ptr, FS_DIRDATA_SEP);
@@ -371,19 +371,44 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     inode->offset_firstblk = (size_t*)offset_firstblk;
     inode_data_set(fs, inode, data, data_sz);
     
-    // TODO: Update file's parent directory to include this file
+    // // TODO: Update file's parent directory to include this file
     Inode* parent = resolve_path(fs, path);
-    char* dir_entry;
-    strcpy(dir_entry, inode->name);
-    strcat(dir_entry, ":");
-    char* str_offset;
-    sprintf(str_offset, "%ln", inode->offset_firstblk);
-    strcat(dir_entry, str_offset);
-    strcat(dir_entry, "\n");
-    char* previous_entries;
-    inode_data_get(fs, parent, previous_entries);
-    strcat(previous_entries, dir_entry);
-    inode_data_set(fs, parent, previous_entries, strlen(previous_entries));
+
+    // Get the new file's inode offset
+    char offset_str[1000];      // TODO: sz should be based on fs->num_inodes
+    size_t offset = offset_from_ptr(fs, inode);        // offset
+    snprintf(offset_str, sizeof(offset_str), "%zu", offset);  // offset to str
+
+    // Build new file's lookup line: "filename:offset\n"
+    size_t fileline_sz = 0;
+    char *fileline_data = malloc(0);
+
+    fileline_sz = str_len(fname) + str_len(offset_str) + 2; // +2 for : and \n
+    fileline_data = realloc(fileline_data, fileline_sz);
+
+    strcat(fileline_data, fname);
+    strcat(fileline_data, FS_DIRDATA_SEP);
+    strcat(fileline_data, offset_str);
+    strcat(fileline_data, FS_DIRDATA_END);
+    inode_data_append(fs, parent, fileline_data);
+
+    //debug
+    printf("\n- Adding new file: %s\n", fname);
+    // printf("  New lookup line to write: %s\n", data);
+
+    // Append the lookup line to the parent dir's existing lookup data
+    // inode_data_append(fs, parent, fileline_data);
+    // char* dir_entry;
+    // strcpy(dir_entry, inode->name);
+    // strcat(dir_entry, ":");
+    // char* str_offset;
+    // sprintf(str_offset, "%ln", inode->offset_firstblk);
+    // strcat(dir_entry, str_offset);
+    // strcat(dir_entry, "\n");
+    // char* previous_entries;
+    // inode_data_get(fs, parent, previous_entries);
+    // strcat(previous_entries, dir_entry);
+    // inode_data_set(fs, parent, previous_entries, strlen(previous_entries));
     // TODO: as well as Update parent inode dir data.
     // TODO: (Waiting on file_resolvepath())
 
@@ -413,9 +438,9 @@ Inode* resolve_path(FSHandle *fs, const char *path) {
     if (strcmp(path, root_dir->name) == 0) {
         return root_dir;
     }
-    char* buf;
-    inode_data_get(fs, root_dir, buf);
-    printf("%s\n", buf);
+    // char* buf;
+    // inode_data_get(fs, root_dir, buf);
+    // printf("%s\n", buf);
     Inode* curr_dir = root_dir;
     char curr_path_part[strlen(path)];
     int curr_ind = 1;
@@ -433,10 +458,12 @@ Inode* resolve_path(FSHandle *fs, const char *path) {
             }
         }
         curr_path_part[path_ind] = '\0';
-        printf("%s\n", curr_path_part);
+        printf("CURR PATH1: %s\n", curr_path_part);
+        curr_dir = dir_subitem_get(fs, curr_dir, curr_path_part);
+        printf("CURR PATH2: %s\n", curr_path_part);
         sleep(1);
     }
-    return NULL;
+    return curr_dir;
     //printf("%s\n", fs->inode_seg->fname);
 }
 
@@ -986,27 +1013,29 @@ int main()
     Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
     Inode *file1 = file_new(fs, "/dir1", "file1", "hello from file 1", 17);
     Inode *file2 = file_new(fs, "/", "file2", lg_data, data_sz);
-    printf("Resolve root: %s\n", resolve_path(fs, "/")->name);
-    
-    printf("Path traversal test:\n");
-    resolve_path(fs, "/home/test/thirty/seven/file");
 
+    // printf("Resolve root: %s\n", resolve_path(fs, "/")->name);
+    
+    // printf("Path traversal test:\n");
+    resolve_path(fs, "/dir1");
+    Inode *test = resolve_path(fs, "/dir1/file1");
+    // printf("\nExamining /dir1/file1 from resolve path ");
+    // print_inode_debug(fs, test);
+    
     ////////////////////////////////////////////////////////////////////////
     // Display test file/directory attributes
 
     // Root dir
-    printf("\nExamining / ");
-    print_inode_debug(fs, fs_rootnode_get(fs));
 
     // Dir 1
-    printf("\nExamining /dir1 ");
-    print_inode_debug(fs, dir1);
+    // printf("\nExamining /dir1 ");
+    // print_inode_debug(fs, dir1);
 
-    // File1
+    // // // File1
     printf("\n\nExamining /dir1/file1 ");
     print_inode_debug(fs, file1);
 
-    // File 2 (screen hog)
+    // // File 2 (screen hog)
     // printf("\n\nExamining /file2 ");
     // print_inode_debug(fs, file2);
 
