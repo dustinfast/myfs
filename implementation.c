@@ -141,6 +141,8 @@ static void inode_data_set(FSHandle *fs, Inode *inode, char *data, size_t sz) {
         *(int*)(&memblock->not_free) = 1;
         memblock->data_size_b = (size_t*) sz;
         memblock->offset_nextblk = 0;
+        // printf("\nSET DATA:\n");
+        // write(fileno(stdout), data, sz);
     }
 
     // Else use multiple blocks, if available
@@ -196,7 +198,7 @@ static void inode_data_set(FSHandle *fs, Inode *inode, char *data, size_t sz) {
 static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
     // Get the parent dir's curr data (i.e. a list of files/dirs)
     size_t data_sz = 0;
-    char *data = malloc(1);
+    char *data = malloc(*(int*)(&inode->file_size_b) + str_len(append_data));
     data_sz = inode_data_get(fs, inode, data);
     data_sz += str_len(append_data);  // Sz of new data field
     
@@ -204,21 +206,15 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
     // printf("APPENDING: '%s'\n", append_data);
 
     // Concatenate append_data to current data
-    data = realloc(data, data_sz);
-    if (!data) {
-        printf("ERROR: Failed to realloc.");
-        return 0;
-    }
-
     strcat(data, append_data);
 
-    // printf("NEW DATA: '%s' of sz: %lu\n", data, data_sz);
+    // printf("\nCALLING SET FOR: '%s' of sz: %lu\n", data, data_sz);
 
     inode_data_set(fs, inode, data, data_sz);  // Overwrite existing data
 
-    // char *buf2 = malloc(1);
+    // char *buf2 = malloc(inode->file_size_b);
     // inode_data_get(fs, inode, buf2);
-    // printf("VERIFY (from node): '%s'\n", buf2);
+    // printf("\nNode data after set: '%s'\n", buf2);
     // free(buf2);
 
     free(data);
@@ -238,7 +234,7 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
 // parent directory given by inode (Or NULL if item could not be found).
 static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
     // Get parent dir's data
-    char *curr_data = malloc(0);
+    char *curr_data = malloc(*(int*)(&inode->file_size_b));
     inode_data_get(fs, inode, curr_data);
 
     // Get ptr to the items line in the parent dir's file/dir data.
@@ -315,13 +311,12 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     // Get the new inode's offset
     char offset_str[1000];      // TODO: sz should be based on fs->num_inodes
     size_t offset = offset_from_ptr(fs, newdir_inode);        // offset
-    snprintf(offset_str, sizeof(offset_str), "%zu", offset);  // offset to str
+    snprintf(offset_str, sizeof(offset_str), "%lu", offset);  // offset to str
 
     // Build new directory's lookup line: "dirname:offset\n"
     size_t data_sz = 0;
     data_sz = str_len(dirname) + str_len(offset_str) + 2; // +2 for : and \n
     char *data = malloc(data_sz);
-    // data = realloc(data, data_sz);
 
     strcpy(data, dirname);
     strcat(data, FS_DIRDATA_SEP);
@@ -356,9 +351,13 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
 // Returns: A ptr to the newly created file's I-node (or NULL on fail).
 static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
                        size_t data_sz) {
-    Inode *parentdir_inode = fs_pathresolve(fs, path, NULL);
-    
-    if(dir_subitem_get(fs, parentdir_inode, fname) != NULL) {
+    Inode *parent = resolve_path(fs, path);
+
+    if (!parent) {
+        printf("ERROR: %s is an invalid path\n", fname);
+        return NULL;
+    }
+    if(dir_subitem_get(fs, parent, fname) != NULL) {
         printf("ERROR: File %s already exists\n", fname);
         return NULL;
     }
@@ -390,11 +389,10 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     inode->offset_firstblk = (size_t*)offset_firstblk;
     inode_data_set(fs, inode, data, data_sz);
     
-    // Update file's parent directory to include this file  // TODO: Working?
-    Inode* parent = resolve_path(fs, path);
+    // Update file's parent directory to include this file
 
     // Get the new file's inode offset
-    char offset_str[1000];      // TODO: sz should be based on fs->num_inodes
+    char offset_str[100];      // TODO: sz should be based on fs->num_inodes
     size_t offset = offset_from_ptr(fs, inode);               // offset
     snprintf(offset_str, sizeof(offset_str), "%zu", offset);  // offset to str
 
@@ -409,8 +407,8 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     strcat(fileline_data, FS_DIRDATA_END);
     
     //debug
-    // printf("\n- Adding new file: %s To: %s\n", fname, path);
-    // printf("  New lookup line to write: %s\n", fileline_data);
+    // printf("\n- Adding new file: %s To: %s\n", fname, parent->name);
+    // printf("  New lookup line to write: %s (%lu bytes)\n", fileline_data, fileline_sz);
 
     // Append the lookup line to the parent dir's existing lookup data
     inode_data_append(fs, parent, fileline_data);
@@ -946,11 +944,9 @@ void print_memblock_debug(FSHandle *fs, MemHead *memhead) {
 
 // Print inode stats
 void print_inode_debug(FSHandle *fs, Inode *inode) {
+    if (inode == NULL) printf("    FAIL: inode is NULL.\n");
 
-    if (inode == NULL)
-        printf("    FAIL: inode is NULL.\n");
-
-    char *buff = malloc(1);
+    char *buff = malloc(*(int*)(&inode->file_size_b));
     size_t sz = inode_data_get(fs, inode, buff);
     
     printf("Inode -\n");
@@ -968,7 +964,7 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
     write(fileno(stdout), buff, sz);
     printf("\n");
 
-    // free(buf);
+    free(buff);
 }
 
 int main() 
@@ -980,7 +976,7 @@ int main()
     /////////////////////////////////////////////////////////////////////////
     // Begin file system init  
 
-    size_t fssize = kb_to_bytes(16) + ST_SZ_FSHANDLE;  // kb align after handle
+    size_t fssize = kb_to_bytes(32) + ST_SZ_FSHANDLE;  // kb align after handle
     void *fsptr = malloc(fssize);  // Allocate fs space (usually done by myfs.c)
     
     // Associate the filesys with a handle.
@@ -1008,31 +1004,34 @@ int main()
         else
             *c = 'b';
     }
-    // Inode *file2 = file_new(fs, "/", "file2", lg_data, data_sz);
+    Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
+    // Inode *file2 = file_new(fs, "/dir1", "file2", lg_data, data_sz);
 
     // Init test dirs/files
     printf("\nExamining / ");
-    Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
-    Inode *file1 = file_new(fs, "/dir1", "file1", "hello from file 1", 17);
+    Inode *file1 = file_new(fs, "/", "file1", "hello from file 1", 17);
+    Inode *file3 = file_new(fs, "/dir1", "file3", "hello from file 3", 17);
+    Inode *file4 = file_new(fs, "/dir1", "file4", "hello from file 4", 17);
+    // Inode *file5 = file_new(fs, "/dir1", "file5", "hello from file 5", 17);
 
     ////////////////////////////////////////////////////////////////////////
     // Display test file/directory attributes
 
     // Root dir
     printf("\nExamining / ");
-    print_inode_debug(fs, resolve_path(fs, "/"));
+    print_inode_debug(fs, fs_rootnode_get(fs));
 
     // Dir 1
     printf("\nExamining /dir1 ");
     print_inode_debug(fs, resolve_path(fs, "/dir1"));
 
-    // File1
-    printf("\nExamining /dir1/file1 ");
-    print_inode_debug(fs, resolve_path(fs, "/dir1/file1"));
+    // // File1
+    // printf("\nExamining /dir1/file1 ");
+    // print_inode_debug(fs, resolve_path(fs, "/file1"));
 
-    // File 2 (screen hog)
+    // // File 2 (screen hog)
     // printf("\nExamining /file2 ");
-    // print_inode_debug(fs, resolve_path(fs, "/file2\0"));
+    // print_inode_debug(fs, resolve_path(fs, "/dir1/file2"));
 
 
     /////////////////////////////////////////////////////////////////////////

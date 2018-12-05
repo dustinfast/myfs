@@ -22,8 +22,8 @@
 #define BYTES_IN_KB (1024)                  // Num bytes in a kb
 #define FS_PATH_SEP ("/")                   // File system's path seperator
 #define FS_DIRDATA_SEP (":")                // Dir data name/offset seperator
-// #define FS_DIRDATA_END ("b")               // Dir data name/offset end char
-#define FS_DIRDATA_END ("\n")               // Dir data name/offset end char
+#define FS_DIRDATA_END ("b")               // Dir data name/offset end char
+// #define FS_DIRDATA_END ("\n")               // Dir data name/offset end char
 #define MAGIC_NUM (UINT32_C(0xdeadd0c5))    // Num for denoting block init
 
 // Inode -
@@ -179,33 +179,28 @@ size_t memblock_data_get(FSHandle *fs, MemHead *memhead, char *buf) {
 
         if (!sz_to_write) 
             break;  // memblock has zero bytes of data
-         
-        // Resize buf to accomodate the new data
-        buf = realloc(buf, total_sz);
-        if (!buf) {
-            printf("ERROR: Failed to realloc.");
-            return 0;
-        }
 
         // Get a ptr to memblock's data field
-        char *memblocks_data_field = (char *)(memblock + ST_SZ_MEMHEAD);
+        char *memblock_data_field = (char *)(memblock + ST_SZ_MEMHEAD);
 
         // Cpy memblock's data into our buffer
-        void *buf_writeat = (void *)buf + old_sz;
-        memcpy(buf_writeat, memblocks_data_field, sz_to_write);
+        void *buf_writeat = (char *)buf + old_sz;
+        memcpy(buf_writeat, memblock_data_field, sz_to_write);
         
         // Debug
-        // printf("sz_to_write: %lu\n", sz_to_write);
-        // printf("Memblock Data:\n");
-        // write(fileno(stdout), (char *)buf_writeat, sz_to_write);
+        // printf("DATA GET SZ: %lu\n", total_sz);
+        // printf("DATA buf: %lu\n", buf);
+        // printf("DATA buf_writeat: %lu\n", buf_writeat);
+        // printf("\nGOT DATA:\n");
+        // write(fileno(stdout), buf, total_sz);
+        // printf("\nGOT RETURNED AT BUF: %lu\n", buf);
         
         // If on the last (or only) memblock of the sequence, stop iterating
-        if (memblock->offset_nextblk == 0)
+        if (memblock->offset_nextblk == 0) 
             break;
-        
         // Else, start operating on the next memblock in the sequence
         else
-            memblock = (MemHead*) ptr_from_offset(fs, memblock->offset_nextblk);
+            memblock = (MemHead*)ptr_from_offset(fs, memblock->offset_nextblk);
     }
     return total_sz;
 }
