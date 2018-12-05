@@ -10,9 +10,9 @@
 /* Begin Configurables  -------------------------------------------------- */
 
 
-#define FS_BLOCK_SZ_KB (1)                  // Total kbs of each memory block
+#define FS_BLOCK_SZ_KB (1)                 // Total kbs of each memory block
 #define NAME_MAXLEN (256)                  // Max length of any filename
-#define BLOCKS_TO_INODES (1)                // Num of mem blocks to each inode
+#define BLOCKS_TO_INODES (1)               // Num of mem blocks to each inode
 
 
 /* End Configurables  ---------------------------------------------------- */
@@ -22,6 +22,7 @@
 #define BYTES_IN_KB (1024)                  // Num bytes in a kb
 #define FS_PATH_SEP ("/")                   // File system's path seperator
 #define FS_DIRDATA_SEP (":")                // Dir data name/offset seperator
+// #define FS_DIRDATA_END ("b")               // Dir data name/offset end char
 #define FS_DIRDATA_END ("\n")               // Dir data name/offset end char
 #define MAGIC_NUM (UINT32_C(0xdeadd0c5))    // Num for denoting block init
 
@@ -58,6 +59,8 @@ typedef struct FSHandle {
     struct Inode *inode_seg;    // Ptr to start of inodes segment
     struct MemHead *mem_seg;    // Ptr to start of mem blocks segment
 } FSHandle;
+
+typedef long unsigned int lui; // For shorthand convenience in casting
 
 // Size in bytes of the filesystem's structs (above)
 #define ST_SZ_INODE sizeof(Inode)
@@ -252,7 +255,8 @@ static int inode_name_isvalid(char *name) {
     }
 
     if (len)
-        return 1;
+        return 1;  // Valid
+    return 0;      // Invalid
 }
 
 // Sets the file or directory name (of length sz) for the given inode.
@@ -367,10 +371,11 @@ static FSHandle* fs_init(void *fsptr, size_t size) {
     // If first bytes aren't our magic number, format the mem space for the fs
     if (fs->magic != MAGIC_NUM) {
         printf(" INFO: Formatting new filesystem of size %lu bytes.\n", size);
+        printf(" To use it, open a new terminal and navigate to it.\n");
         
         // Format mem space w/zero-fill
         memset(fsptr, 0, fs_size);
-
+        
         // Populate fs data members
         fs->magic = MAGIC_NUM;
         fs->size_b = fs_size;
@@ -404,8 +409,6 @@ static FSHandle* fs_init(void *fsptr, size_t size) {
 
 /* End filesystem helpers ------------------------------------------------ */
 /* Begin Debug stmts  ---------------------------------------------------- */
-
-typedef long unsigned int lui; // For shorthand convenience
 
 // Print filesystem data structure sizes
 void print_struct_debug() {
