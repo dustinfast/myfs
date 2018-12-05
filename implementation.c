@@ -74,7 +74,9 @@ static FSHandle *fs_handle(void *fsptr, size_t fssize, int *errnoptr) {
 // On fail, sets errnoptr to ENOENT and returns NULL.
 // TODO: actual fs_pathresolve()
 static Inode *fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr) {
-    Inode *inode = fs->inode_seg;
+    Inode *inode = fs->inode_seg;       // /
+    // Inode *inode = fs->inode_seg + 1;   // /dir1
+    // Inode *inode = fs->inode_seg + 2;   // /dir1/file1
     if (!inode && errnoptr) *errnoptr = ENOENT;
     return inode;
 }
@@ -227,12 +229,12 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
 
     // If subdir does not exist, return NULL
     if(subdir_ptr == NULL) {
-        printf("INFO: Sub item %s does not exist in %s.\n", itemlabel, inode->name);
+        // printf("INFO: Sub item %s does not exist in %s.\n", itemlabel, inode->name);
         free(curr_data);
         return NULL;
     }
 
-    else { printf("INFO: Sub item %s exists.\n", itemlabel); }
+    // else { printf("INFO: Sub item %s exists.\n", itemlabel); }
 
     // Else, extract the subdir's inode offset
     char *offset_ptr = strstr(subdir_ptr, FS_DIRDATA_SEP);
@@ -393,7 +395,7 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     inode_data_append(fs, parent, fileline_data);
 
     //debug
-    printf("\n- Adding new file: %s\n", fname);
+    // printf("\n- Adding new file: %s\n", fname);
     // printf("  New lookup line to write: %s\n", data);
 
     // Append the lookup line to the parent dir's existing lookup data
@@ -458,10 +460,9 @@ Inode* resolve_path(FSHandle *fs, const char *path) {
             }
         }
         curr_path_part[path_ind] = '\0';
-        printf("CURR PATH1: %s\n", curr_path_part);
         curr_dir = dir_subitem_get(fs, curr_dir, curr_path_part);
-        printf("CURR PATH2: %s\n", curr_path_part);
-        sleep(1);
+        // printf("CURR PATH2: %s\n", curr_path_part);
+        // sleep(1);
     }
     return curr_dir;
     //printf("%s\n", fs->inode_seg->fname);
@@ -1026,10 +1027,12 @@ int main()
     // Display test file/directory attributes
 
     // Root dir
+    printf("\nExamining / ");
+    print_inode_debug(fs, fs_rootnode_get(fs));
 
     // Dir 1
-    // printf("\nExamining /dir1 ");
-    // print_inode_debug(fs, dir1);
+    printf("\nExamining /dir1 ");
+    print_inode_debug(fs, dir1);
 
     // // // File1
     printf("\n\nExamining /dir1/file1 ");
