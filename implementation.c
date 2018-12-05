@@ -31,7 +31,8 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
-#include "myfs_includes.h"
+
+#include "implementation.h"  // File system helpers
 
 
 /* Begin File System Documentation ---------------------------------------- */
@@ -140,8 +141,6 @@ static void inode_data_set(FSHandle *fs, Inode *inode, char *data, size_t sz) {
         *(int*)(&memblock->not_free) = 1;
         memblock->data_size_b = (size_t*) sz;
         memblock->offset_nextblk = 0;
-        printf("Wrote ");
-        print_memblock_debug(fs, memblock);
     }
 
     // Else use multiple blocks, if available
