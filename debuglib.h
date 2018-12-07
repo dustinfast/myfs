@@ -24,7 +24,7 @@ static void print_fs_debug(FSHandle *fs) {
     printf("    fs->size_b      : %lu (%lu kb)\n", fs->size_b, bytes_to_kb(fs->size_b));
     printf("    fs->inode_seg   : %lu\n", (lui)fs->inode_seg);
     printf("    fs->mem_seg     : %lu\n", (lui)fs->mem_seg);
-    printf("    Num Inodes      : %lu\n", inodes_numfree(fs));
+    printf("    Free Inodes     : %lu\n", inodes_numfree(fs));
     printf("    Num Memblocks   : %lu\n", memblocks_numfree(fs));
     printf("    Free space      : %lu bytes (%lu kb)\n", fs_freespace(fs), bytes_to_kb(fs_freespace(fs)));
 }
@@ -54,7 +54,7 @@ static void print_inode_debug(FSHandle *fs, Inode *inode) {
     printf("      data           : %s\n",  (char*)(memhead + ST_SZ_MEMHEAD));
 }
 
-// Prints a "Result" or "Fail" line to the console based on the given value.
+// Prints either a "Success" or "Fail" to the console based on the given int.
 static void print_result_debug(int result) {
     if (!result)
         printf("Success");
@@ -72,8 +72,8 @@ static void init_files_debug(FSHandle *fs) {
     Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
     Inode *file1 = file_new(fs, "/dir1", "file1", "hello from file 1", 17);
     Inode *file2 = file_new(fs, "/dir1", "file2", "hello from file 2", 17);
-    Inode *file3 = file_new(fs, "/dir1", "file3", "hello from file 3", 17);
-    Inode *file4 = file_new(fs, "/dir1", "file4", "hello from file 4", 17);
+    // Inode *file3 = file_new(fs, "/dir1", "file3", "hello from file 3", 17);
+    // Inode *file4 = file_new(fs, "/dir1", "file4", "hello from file 4", 17);
     
     // Init file 5 consisting of a lg string of a's & b's & terminated w/ 'c'.
     size_t data_sz = DATAFIELD_SZ_B * 1.25;

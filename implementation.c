@@ -25,13 +25,14 @@
     After mounting, open a new terminal and navigate to the fs at ~/fuse-mnt.
 
     Compile with:
-      gcc myfs.c implementation.c `pkg-config fuse --cflags --libs` -o myfs
+      gcc myfs.c implementation.c `pkg-config fuse --cflags --libs` -o myfs -g
     
     Mount (w/out backup to file):
-      ./myfs fuse-mnt/ -f
+      ./myfs ~/fuse-mnt/ -f
     Mount (w/backup to file):
       ./myfs --backupfile=test.myfs ~/fuse-mnt/ -f
     Mount (inside gdb):
+      gdb --args ./myfs ~/fuse-mnt/ -f OR
       gdb --args ./myfs --backupfile=test.myfs ~/fuse-mnt/ -f
     Unmount:
       fusermount -u ~/fuse-mnt
@@ -370,7 +371,7 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     inode_data_set(fs, inode, data, data_sz);
     
     // Get the new file's inode offset
-    char offset_str[100];      // TODO: sz should be based on fs->num_inodes
+    char offset_str[1000];      // TODO: sz should be based on fs->num_inodes
     size_t offset = offset_from_ptr(fs, inode);               // offset
     snprintf(offset_str, sizeof(offset_str), "%zu", offset);  // offset to str
 
@@ -599,13 +600,11 @@ int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
         }
     }
 
-    if (*abspath == '\0') {
+    if (*abspath == '\0')
         strcat(abspath, FS_PATH_SEP);
-    }
-
-    // printf("Creating File -\nabspath: %s\nfname: %s\n", abspath, fname); // Debug
 
     // Create the file
+    // printf("Creating File -\nabspath: %s\nfname: %s\n", abspath, fname); // Debug
     Inode *newfile = file_new(fs, abspath, fname, "", 0);
     
     // Cleanup
@@ -614,9 +613,8 @@ int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     if (!newfile) {
         *errnoptr = EINVAL;
-        return -1;                  // Fail - bad fname, or file already exists
+        return -1;  // Fail - bad fname, or file already exists
     }
-
     return 0;  // Success
 }
 

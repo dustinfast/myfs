@@ -6,6 +6,13 @@
 
 #include <time.h>
 
+// Try/Catch implementation, from 
+#include <setjmp.h>
+
+#define TRY do{ jmp_buf ex_buf__; if( !setjmp(ex_buf__) ){
+#define CATCH } else {
+#define ETRY } }while(0)
+#define THROW longjmp(ex_buf__, 1)
 
 /* Begin Configurables  -------------------------------------------------- */
 
@@ -53,8 +60,8 @@ typedef struct MemHead {
 typedef struct FSHandle {
     uint32_t magic;             // "Magic" number, for denoting mem ini'd
     size_t size_b;              // Fs sz from inode seg to end of mem blocks
-    int num_inodes;             // Num inodes the file system contains
-    int num_memblocks;          // Num memory blocks the file system contains
+    size_t num_inodes;          // Num inodes the file system contains
+    size_t num_memblocks;       // Num memory blocks the file system contains
     struct Inode *inode_seg;    // Ptr to start of inodes segment
     struct MemHead *mem_seg;    // Ptr to start of mem blocks segment
 } FSHandle;
@@ -139,7 +146,7 @@ static MemHead* memblock_nextfree(FSHandle *fs) {
         if (memblock_isfree(memblock))
             return memblock;
 
-        memblock = memblock + (sizeof(MEMBLOCK_SZ_B) * sizeof(void*));
+        memblock = (MemHead*)((size_t)memblock + MEMBLOCK_SZ_B);
     }
     return NULL;
 }
@@ -147,16 +154,19 @@ static MemHead* memblock_nextfree(FSHandle *fs) {
 // Returns the number of free memblocks in the filesystem
 static size_t memblocks_numfree(FSHandle *fs) {
     MemHead *memblock = fs->mem_seg;
+    size_t blks_start = (lui)fs->mem_seg;
+    size_t blks_end = blks_start + (fs->num_memblocks * ((lui)MEMBLOCK_SZ_B));
     size_t num_memblocks = fs->num_memblocks;
     size_t num_free = 0;
 
     for (int i = 0; i < num_memblocks; i++)
     {
-        if (memblock_isfree(memblock))
-            num_free++;
+        // TODO: FIX if (memblock_isfree(memblock))
+        num_free++;
 
-        memblock = memblock + (sizeof(MEMBLOCK_SZ_B) * sizeof(void*));
+        memblock = (MemHead*)((size_t)memblock + MEMBLOCK_SZ_B);
     }
+
     return num_free;
 }
 
@@ -358,6 +368,7 @@ static FSHandle* fs_init(void *fsptr, size_t size) {
     // If first bytes aren't our magic number, format the mem space for the fs
     if (fs->magic != MAGIC_NUM) {
         printf(" INFO: Formatting new filesystem of size %lu bytes.\n", size);
+        printf(" (Start=%lu, end=%lu\n", (lui)fs, (lui)fs + size);
         
         // Format mem space w/zero-fill
         memset(fsptr, 0, fs_size);
