@@ -35,6 +35,8 @@
       gdb --args ./myfs --backupfile=test.myfs ~/fuse-mnt/ -f
     Unmount:
       fusermount -u ~/fuse-mnt
+
+    For more information, see README.md.
 */
 
 #include <stddef.h>
@@ -50,38 +52,9 @@
 #include <errno.h>
 #include <stdio.h>
 
-#include "implementation.h"  // File system helpers
+#include "implementation.h"  // Custom defs and helpers
 
 
-/* Begin File System Documentation ---------------------------------------- */
-/*    
-    + File system structure in memory is:
-     _ _ _ _ _ _ _ _ _______________________ ___________________________
-    |   FSHandle    |       Inodes          |       Memory Blocks       | 
-    |_ _ _ _ _ _ _ _|_______________________|___________________________|
-    ^               ^                       ^
-    fsptr           Inodes Segment          Memory Blocks segment
-                    (0th is root inode)     (0th is root dir memory block)
-
-    + Memory blocks look like:
-     ______________ ________________________
-    |   MemHead    |         Data           |
-    |______________|________________________|
-
-
-    Directory file data field structure:
-        Ex: "dir1:offset\ndir2:offset\nfile1:offset"
-        Ex: "file1:offset\nfile2:offset"
-
-    Design Decisions:
-        Assume a single process accesses the fs at a time?
-        To begin writing data before checking fs has enough room?
-        Assume only absolute paths passed to 13 funcs?
-        Filename and path chars to allow.
-        Simple design vs. Better design.
-
-*/
-/* End File System Documentation ------------------------------------------ */
 /* Begin Filesystem Helpers ----------------------------------------------- */
 
 
