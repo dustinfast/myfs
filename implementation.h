@@ -395,41 +395,10 @@ static FSHandle* fs_init(void *fsptr, size_t size) {
 
 
 /* End filesystem helpers ------------------------------------------------ */
-/* Begin Debug stmts  ---------------------------------------------------- */
-
-// Print filesystem data structure sizes
-void print_struct_debug() {
-    printf("File system's data structures:\n");
-    printf("    FSHandle        : %lu bytes\n", ST_SZ_FSHANDLE);
-    printf("    Inode           : %lu bytes\n", ST_SZ_INODE);
-    printf("    MemHead         : %lu bytes\n", ST_SZ_MEMHEAD);
-    printf("    Data Field      : %lu bytes\n", DATAFIELD_SZ_B);
-    printf("    Memory Block    : %lu bytes (%lu kb)\n", 
-           MEMBLOCK_SZ_B,
-           bytes_to_kb(MEMBLOCK_SZ_B));
-}
-
-// Print filesystem stats
-void print_fs_debug(FSHandle *fs) {
-    printf("File system properties: \n");
-    printf("    fs (fsptr)      : %lu\n", (lui)fs);
-    printf("    fs->num_inodes  : %lu\n", (lui)fs->num_inodes);
-    printf("    fs->num_memblks : %lu\n", (lui)fs->num_memblocks);
-    printf("    fs->size_b      : %lu (%lu kb)\n", fs->size_b, bytes_to_kb(fs->size_b));
-    printf("    fs->inode_seg   : %lu\n", (lui)fs->inode_seg);
-    printf("    fs->mem_seg     : %lu\n", (lui)fs->mem_seg);
-    printf("    Num Inodes      : %lu\n", inodes_numfree(fs));
-    printf("    Num Memblocks   : %lu\n", memblocks_numfree(fs));
-    printf("    Free space      : %lu bytes (%lu kb)\n", fs_freespace(fs), bytes_to_kb(fs_freespace(fs)));
-}
-
-
-/* End Filesys Debug stmts  ------------------------------------------------*/
 
 
 
 
-/* End String helpers ----------------------------------------------------- */
 
 // ----- Snippets adapted from CLauter's snippets.txt:
 //
