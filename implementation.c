@@ -22,7 +22,7 @@
   See the file LICENSE.
 
   Usage:
-    After mounting open a new terminal and navigate to the fs at ~/fuse-mnt.
+    After mounting, open a new terminal and navigate to the fs at ~/fuse-mnt.
 
     Compile with:
       gcc myfs.c implementation.c `pkg-config fuse --cflags --libs` -o myfs
@@ -214,6 +214,8 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
 // Returns the inode for the given item (a sub-directory or file) having the
 // parent directory given by inode (Or NULL if item could not be found).
 static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
+    if (!inode) return NULL;  // Ensure valid inode ptr
+
     // Get parent dir's data
     char *curr_data = malloc(*(int*)(&inode->file_size_b));
     inode_data_get(fs, inode, curr_data);
@@ -320,7 +322,7 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
 
 
 /* End Directory helpers ------------------------------------------------- */
-/* Begin File helpers ------------------------------------------------------ */
+/* Begin File helpers ---------------------------------------------------- */
 
 
 // Creates a new file in the fs having the given properties.
@@ -331,12 +333,12 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     Inode *parent = resolve_path(fs, path);
 
     if (!parent) {
-        printf("ERROR: %s is an invalid path\n", fname);
+        printf("ERROR: invalid path\n");
         return NULL;
     }
     
     if(dir_subitem_get(fs, parent, fname) != NULL) {
-        printf("ERROR: File %s already exists\n", fname);
+        printf("ERROR: File already exists\n");
         return NULL;
     }
 
@@ -358,7 +360,7 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     }
 
     if (!inode_name_set(inode, fname)) {
-        printf("ERROR: Invalid filemame for new file %s\n", fname);
+        printf("ERROR: Invalid file name\n");
         return NULL;
     }
     
@@ -367,8 +369,6 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     inode->offset_firstblk = (size_t*)offset_firstblk;
     inode_data_set(fs, inode, data, data_sz);
     
-    // Update file's parent directory to include this file
-
     // Get the new file's inode offset
     char offset_str[100];      // TODO: sz should be based on fs->num_inodes
     size_t offset = offset_from_ptr(fs, inode);               // offset
@@ -412,8 +412,9 @@ static int file_data_append(FSHandle *fs, char *path, char *append_data) {
     return inode_data_append(fs, inode, append_data);
 }
 
+// Resolves the given file or directory path and returns its associated inode.
 static Inode* resolve_path(FSHandle *fs, const char *path) {
-    Inode* root_dir = fs->inode_seg;
+    Inode* root_dir = fs_rootnode_get(fs);
 
     // If path is root directory 
     if (strcmp(path, root_dir->name) == 0)
@@ -602,8 +603,7 @@ int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
         strcat(abspath, FS_PATH_SEP);
     }
 
-    // Debug
-    // printf("Creating File -\nabspath: %s\nfname: %s\n", abspath, fname);
+    // printf("Creating File -\nabspath: %s\nfname: %s\n", abspath, fname); // Debug
 
     // Create the file
     Inode *newfile = file_new(fs, abspath, fname, "", 0);
@@ -762,13 +762,32 @@ int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
     if ((!(inode = fs_pathresolve(fs, path, errnoptr)))) return -1;
 
-    /* STUB */
-    
-    return -1;
+    // Read file data
+    char* cpy_buf = malloc(1);
+    size_t data_size = file_data_get(fs, path, cpy_buf);
+    size_t diff = data_size - offset;
+
+    // If request makes file larger
+    if (offset > data_size) {
+        printf("Expanding (offset=%lu, data_sz=%lu)...\n", offset, data_size);
+        char *diff_arr = malloc(diff);
+        memset(diff_arr, 0, diff);
+        // memcpy(diff_arr, 0, diff);                  // Fill arr with zeroes
+        inode_data_append(fs, inode, diff_arr);     // Append zeroes to file
+    }
+    // Else, if request makes file smaller
+    else if (offset < data_size) {
+        printf("Shrinking (offset=%lu, data_sz=%lu)...\n", offset, data_size);
+        inode_data_remove(fs, inode);
+        cpy_buf[offset] = '\0';
+        inode_data_append(fs, inode, cpy_buf);
+    }
+    // Otherwise, file size and contents are unchanged
+
+    return 0;  // Success
 }
 
 /* -- __myfs_open_implem() -- */
-// TODO: Ready for testing.
 /* Implements an emulation of the open system call on the filesystem 
    of size fssize pointed to by fsptr, without actually performing the opening
    of the file (no file descriptor is returned).
@@ -804,10 +823,9 @@ int __myfs_open_implem(void *fsptr, size_t fssize, int *errnoptr,
     if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
 
     // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
-    if ((!(fs_pathresolve(fs, path, errnoptr)))) 
-        return -1;  // Fail
-    else
-        return 0;   // Success
+    if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;  // Fail
+
+    return 0; // Success
 }
 
 /* Implements an emulation of the read system call on the filesystem 
@@ -835,7 +853,7 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
     if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;
-
+    
     // Read file data
     char* full_buf = malloc(1);
     char *cpy_buf = full_buf;
@@ -843,25 +861,15 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
     size_t data_size = file_data_get(fs, path, full_buf);
 
     // If offset is past end of data, zero-bytes readable
-    if (offset >= data_size)  
+    if (offset >= data_size) { 
+        free(full_buf);
         return 0;
+    }
 
     // Set data index and num bytes to read based on offset param
     cpy_buf += offset;
     int diff = cpy_buf - full_buf;
     cpy_size = data_size - offset;
-
-    // debug
-    // printf("\nsize requested: %lu\n", size);
-    // printf("offset requested: %lu\n", offset);
-    // printf("data size: %lu\n", data_size);
-    // printf("diff: %d\n", diff);
-    // printf("actual cpy size: %d\n\n", cpy_size);
-    // printf("full_buff:\n");
-    // write(fileno(stdout), full_buf, data_size);
-    // printf("\ncpy_buff:\n");
-    // write(fileno(stdout), cpy_buf, cpy_size);
-    // printf("\n");
 
     // Copy cpy_size bytes into buf
     memcpy(buf, cpy_buf, cpy_size);
