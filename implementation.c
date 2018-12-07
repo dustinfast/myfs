@@ -446,7 +446,6 @@ static Inode* resolve_path(FSHandle *fs, const char *path) {
 
 
 /* -- __myfs_getattr_implem() -- */
-// TODO: Ready for testing.
 /* Implements the "stat" system call on the filesystem 
 
    Accepts:
@@ -495,11 +494,9 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
         stbuf->st_mode = S_IFDIR | 0755;
         stbuf->st_nlink = *(int*)(&inode->subdirs) + 2;  // "+ 2" for . and .. 
     } else {
-        printf("--THIS LINE SHOULD BE FOLLOWED BY A LINE 2. If not ERROR.\n");
         stbuf->st_mode = S_IFREG | 0755;
         stbuf->st_nlink = 1;
-        stbuf->st_size = *inode->file_size_b;
-        printf("--LINE2: All OK.\n");
+        stbuf->st_size = *(int*)(&inode->file_size_b);
     } 
 
     return 0;  // Success  
@@ -833,11 +830,11 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
     // write(fileno(stdout), cpy_buf, cpy_size);
     // printf("\n");
 
-    // Copy cpy_size bytes into buf and return num bytes written 
+    // Copy cpy_size bytes into buf
     memcpy(buf, cpy_buf, cpy_size);
-
     free(full_buf);
-    return cpy_size;
+
+    return cpy_size;  // num bytes written
 }
 
 /* Implements an emulation of the write system call on the filesystem 

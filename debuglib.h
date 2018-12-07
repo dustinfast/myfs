@@ -56,8 +56,7 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
 
 // Sets up files inside the filesystem for debugging purposes
 void static init_files_debug(FSHandle *fs) {
-    printf("DEBUG: Initializing test files/folders ");
-    printf("/, /dir1, /dir1/file1 through /dir1/file4, and /file5\n");
+    printf("\n--- Initializing test files/folders ---");
 
     // Init test dirs/files
     Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
@@ -101,16 +100,17 @@ int main()
     print_fs_debug(fs);     // Display fs properties
 
     init_files_debug(fs);   // Init test files/dirs
-    printf("\n");
 
     ////////////////////////////////////////////////////////////////////////
     // Display test file/directory attributes
 
-    char file1_path[] =  "/dir1/file1";
-    char file2_path[] =  "/dir1/file2";
-    char file3_path[] =  "/dir1/file3";
-    char file4_path[] =  "/dir1/file4";
-    char file5_path[] =  "/file5";
+    char path_root[] =  "/";
+    char path_dir1[] =  "/dir1";
+    char path_file1[] =  "/dir1/file1";
+    char path_file2[] =  "/dir1/file2";
+    char path_file3[] =  "/dir1/file3";
+    char path_file4[] =  "/dir1/file4";
+    char path_file5[] =  "/file5";
 
     // Root dir
     printf("\nExamining / ");
@@ -118,41 +118,60 @@ int main()
     
     // Dir 1
     printf("\nExamining /dir1 ");
-    print_inode_debug(fs, resolve_path(fs, "/dir1"));
+    print_inode_debug(fs, resolve_path(fs, path_dir1));
 
     // File1
     printf("\nExamining /dir1/file1 ");
-    print_inode_debug(fs, resolve_path(fs, file1_path));
+    print_inode_debug(fs, resolve_path(fs, path_file1));
 
     // File2
     printf("\nExamining /dir1/file2 ");
-    print_inode_debug(fs, resolve_path(fs, "/dir1/file2"));
+    print_inode_debug(fs, resolve_path(fs, path_file2));
 
     // File 5 (commented out because multi-memblock data hogs screen)
     // printf("\nExamining /file5 ");
-    // print_inode_debug(fs, resolve_path(fs, "/file5"));
+    // print_inode_debug(fs, resolve_path(fs, path_file5));
+
+    printf("\n");
 
     /////////////////////////////////////////////////////////////////////////
     // Begin 13 stub tests
+    printf("\n--- Testing __myfs implem functions ---\n");
+
+    char *filepath = path_file1;  // Test file path
+    char *dirpath = path_dir1;    // Test dir path
 
     char *buf;
-    int *errnoptr;
+    struct stat *stbuf = malloc(sizeof(struct stat));
     size_t size, offset;
+    int *errnoptr;
     int ret_val;
 
-    char *path = file1_path;  // Path to test file
+    // Test __myfs_getattr_implem
+    printf("\n__myfs_getattr_implem():\n");
+    ret_val = __myfs_getattr_implem(fsptr, fssize, errnoptr, 0, 0, filepath, stbuf);
+    
+    if (!ret_val)
+        printf("Success");
+    else
+        printf("Fail");
+
+    printf("\n");
+    free(stbuf);
 
     // Test __myfs_read_implem
+    printf("\n__myfs_read_implem():\n");
     size = 17;
     offset = 0;
     buf = malloc(size);
-    ret_val = __myfs_read_implem(fsptr, fssize, errnoptr, path, buf, size, offset);
+    ret_val = __myfs_read_implem(fsptr, fssize, errnoptr, filepath, buf, size, offset);
 
-    printf("\nRECEIVED %d bytes from __myfs_read_implem():\n", ret_val); 
+    printf("(%d bytes)\n", ret_val); 
     write(fileno(stdout), buf, ret_val);
+    
     printf("\n");
-
     free(buf);
+
 
     /////////////////////////////////////////////////////////////////////////
     // Cleanup
