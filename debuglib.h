@@ -155,8 +155,8 @@ int main()
 
     char *path = file1_path;  // Path to test file
 
-    //  __myfs_read_implem
-    size = 1000;
+    // Test __myfs_read_implem
+    size = 17;
     offset = 0;
     buf = malloc(size);
     ret_val = __myfs_read_implem(fsptr, fssize, errnoptr, path, buf, size, offset);
@@ -166,7 +166,6 @@ int main()
     printf("\n");
 
     free(buf);
-
 
     /////////////////////////////////////////////////////////////////////////
     // Cleanup

@@ -86,7 +86,7 @@ static Inode *fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr) {
 
 // Populates buf with a string representing the given inode's data.
 // Returns: The size of the data at buf.
-static size_t inode_data_get(FSHandle *fs, Inode *inode, char *buf) {
+static size_t inode_data_get(FSHandle *fs, Inode *inode, const char *buf) {
     inode_lasttimes_set(inode, 0);
     return memblock_data_get(fs, inode_firstmemblock(fs, inode), buf);   
 }
@@ -396,7 +396,7 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
 }
 
 // Populates buf with the file's data and returns len(buf).
-static size_t file_data_get(FSHandle *fs, char *path, char *buf) {
+static size_t file_data_get(FSHandle *fs, const char *path, char *buf) {
     Inode *inode = resolve_path(fs, path);
     return inode_data_get(fs, inode, buf);
 }

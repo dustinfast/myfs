@@ -163,7 +163,7 @@ static size_t memblocks_numfree(FSHandle *fs) {
 // Populates buf with a string representing the given memblock's data,
 // plus the data of any subsequent MemBlocks extending it.
 // Returns: The size of the data at buf.
-size_t memblock_data_get(FSHandle *fs, MemHead *memhead, char *buf) {
+size_t memblock_data_get(FSHandle *fs, MemHead *memhead, const char *buf) {
     MemHead *memblock = (MemHead*) memhead;
     size_t total_sz = 0;
     size_t old_sz = 0;
