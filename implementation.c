@@ -1,22 +1,40 @@
-/* MyFS: a tiny file-system based on FUSE - Filesystem in Userspace
+/*
 
-    Note: Requires FUSE dev lib: sudo apt-get install libfuse-dev
+  MyFS: a tiny file-system written for educational purposes
+
+  MyFS is 
+
+  Copyright 2018 by
+
+  University of Alaska Anchorage, College of Engineering.
+
+  Contributors: Dustin Fast
+                Joel Keller
+                Christoph Lauter
+                Brooks Woods
+
+  and based on 
+
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  This program can be distributed under the terms of the GNU GPL.
+  See the file LICENSE.
+
+  Usage:
+    After mounting open a new terminal and navigate to the fs at ~/fuse-mnt.
+
+    Compile with:
+      gcc myfs.c implementation.c `pkg-config fuse --cflags --libs` -o myfs
     
-    Compile:
-        gcc myfs.c implementation.c `pkg-config fuse --cflags --libs` -o myfs
-    Usage (w/backup file):
-        ./myfs --backupfile=test.myfs ~/test-mnt/ -f
-    Usage (w/no backup file):
-        ./myfs test-mnt/ -f
-
-    May be mounted while running inside gdb (for debugging) with:
-    gdb --args ./myfs --backupfile=test.myfs ~/fuse-mnt/ -f
-
-    It can then be unmounted (in another terminal) with
-    fusermount -u ~/fuse-mnt
-
-    Authors: Dustin Fast, Joel Keller, Brooks Woods - 2018
-
+    Mount (w/out backup to file):
+      ./myfs fuse-mnt/ -f
+    Mount (w/backup to file):
+      ./myfs --backupfile=test.myfs ~/fuse-mnt/ -f
+    Mount (inside gdb):
+      gdb --args ./myfs --backupfile=test.myfs ~/fuse-mnt/ -f
+    Unmount:
+      fusermount -u ~/fuse-mnt
 */
 
 #include <stddef.h>
