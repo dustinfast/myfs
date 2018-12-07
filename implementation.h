@@ -358,7 +358,6 @@ static FSHandle* fs_init(void *fsptr, size_t size) {
     // If first bytes aren't our magic number, format the mem space for the fs
     if (fs->magic != MAGIC_NUM) {
         printf(" INFO: Formatting new filesystem of size %lu bytes.\n", size);
-        printf(" To use it, open a new terminal and navigate to it.\n");
         
         // Format mem space w/zero-fill
         memset(fsptr, 0, fs_size);

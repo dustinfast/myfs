@@ -3,7 +3,7 @@
    Author: Dustin Fast, 2018
 */
 
-// Print filesystem data structure sizes
+// Print filesystem's data structure sizes
 void print_struct_debug() {
     printf("File system's data structures:\n");
     printf("    FSHandle        : %lu bytes\n", ST_SZ_FSHANDLE);
@@ -29,43 +29,29 @@ void print_fs_debug(FSHandle *fs) {
     printf("    Free space      : %lu bytes (%lu kb)\n", fs_freespace(fs), bytes_to_kb(fs_freespace(fs)));
 }
 
-
-
-// Print memory block stats
-void print_memblock_debug(FSHandle *fs, MemHead *memhead) {
-    printf("Memory Block -\n");
-    printf("    addr            : %lu\n", (lui)memhead);
-    printf("    offset          : %lu\n", (lui)offset_from_ptr(fs, memhead));
-    printf("    not_free        : %lu\n", (lui)memhead->not_free);
-    printf("    data_size_b     : %lu\n", (lui)memhead->data_size_b);
-    printf("    offset_nextblk  : %lu\n", (lui)memhead->offset_nextblk);
-    printf("    data            : %s\n",  (char*)(memhead + ST_SZ_MEMHEAD));
-}
-
 // Print inode stats
 void print_inode_debug(FSHandle *fs, Inode *inode) {
     if (inode == NULL) printf("    FAIL: inode is NULL.\n");
 
-    // char *buff = malloc(*(int*)(&inode->file_size_b));
-    // size_t sz = inode_data_get(fs, inode, buff);
-    
     printf("Inode -\n");
-    printf("    addr                : %lu\n", (lui)inode);
-    printf("    offset              : %lu\n", (lui)offset_from_ptr(fs, inode));
-    printf("    name                : %s\n", inode->name);
-    printf("    is_dir              : %lu\n", (lui)inode->is_dir);
-    printf("    subdirs             : %lu\n", (lui)inode->subdirs);
-    printf("    file_size_b         : %lu\n", (lui)inode->file_size_b);
-    printf("    last_acc            : %09ld\n", inode->last_acc->tv_sec);
-    printf("    last_mod            : %09ld\n", inode->last_mod->tv_sec);
-    printf("    offset_firstblk     : %lu\n", (lui)inode->offset_firstblk);  
-    print_memblock_debug(fs, inode_firstmemblock(fs, inode));
-    // printf("    data size           : %lu\n", sz); 
-    // printf("    data: ");
-    // write(fileno(stdout), buff, sz);
-    // printf("\n");
+    printf("   addr                : %lu\n", (lui)inode);
+    printf("   offset              : %lu\n", (lui)offset_from_ptr(fs, inode));
+    printf("   name                : %s\n", inode->name);
+    printf("   is_dir              : %lu\n", (lui)inode->is_dir);
+    printf("   subdirs             : %lu\n", (lui)inode->subdirs);
+    printf("   file_size_b         : %lu\n", (lui)inode->file_size_b);
+    printf("   last_acc            : %09ld\n", inode->last_acc->tv_sec);
+    printf("   last_mod            : %09ld\n", inode->last_mod->tv_sec);
+    printf("   offset_firstblk     : %lu\n", (lui)inode->offset_firstblk);  
 
-    // free(buff);
+    MemHead *memhead = inode_firstmemblock(fs, inode);
+    printf("   first mem block -\n");
+    printf("      addr           : %lu\n", (lui)memhead);
+    printf("      offset         : %lu\n", (lui)offset_from_ptr(fs, memhead));
+    printf("      not_free       : %lu\n", (lui)memhead->not_free);
+    printf("      data_size_b    : %lu\n", (lui)memhead->data_size_b);
+    printf("      offset_nextblk : %lu\n", (lui)memhead->offset_nextblk);
+    printf("      data           : %s\n",  (char*)(memhead + ST_SZ_MEMHEAD));
 }
 
 // Sets up files inside the filesystem for debugging purposes
@@ -80,7 +66,7 @@ void static init_files_debug(FSHandle *fs) {
     Inode *file3 = file_new(fs, "/dir1", "file3", "hello from file 3", 17);
     Inode *file4 = file_new(fs, "/dir1", "file4", "hello from file 4", 17);
     
-    // Init file 5 consisting of a lg string of a's & b's & terminated with a 'c'.
+    // Init file 5 consisting of a lg string of a's & b's & terminated w/ 'c'.
     size_t data_sz = DATAFIELD_SZ_B * 1.25;
     char *lg_data = malloc(data_sz);
     for (size_t i = 0; i < data_sz; i++) {
@@ -115,6 +101,7 @@ int main()
     print_fs_debug(fs);     // Display fs properties
 
     init_files_debug(fs);   // Init test files/dirs
+    printf("\n");
 
     ////////////////////////////////////////////////////////////////////////
     // Display test file/directory attributes
@@ -142,8 +129,8 @@ int main()
     print_inode_debug(fs, resolve_path(fs, "/dir1/file2"));
 
     // File 5 (commented out because multi-memblock data hogs screen)
-    printf("\nExamining /file5 ");
-    print_inode_debug(fs, resolve_path(fs, "/file5"));
+    // printf("\nExamining /file5 ");
+    // print_inode_debug(fs, resolve_path(fs, "/file5"));
 
     /////////////////////////////////////////////////////////////////////////
     // Begin 13 stub tests
