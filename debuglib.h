@@ -136,7 +136,7 @@ int main()
 
     /////////////////////////////////////////////////////////////////////////
     // Begin 13 stub tests
-    printf("\n--- Testing __myfs implem functions ---\n");
+    printf("\n--- Testing __myfs_implem functions ---\n");
 
     char *filepath = path_file1;  // Test file path
     char *dirpath = path_dir1;    // Test dir path
@@ -150,27 +150,37 @@ int main()
     // Test __myfs_getattr_implem
     printf("\n__myfs_getattr_implem():\n");
     ret_val = __myfs_getattr_implem(fsptr, fssize, errnoptr, 0, 0, filepath, stbuf);
+    free(stbuf);
     
     if (!ret_val)
         printf("Success");
     else
         printf("Fail");
-
     printf("\n");
-    free(stbuf);
+
+    // TODO: Test __myfs_readdir_implem
+
+    // Test __myfs_mknod_implem()
+    printf("\n__myfs_mknod_implem():\n");
+    ret_val = __myfs_mknod_implem(fsptr, fssize, errnoptr, "/test1");
+
+    if (!ret_val)
+        printf("Success");
+    else
+        printf("Fail");
+    printf("\n");
 
     // Test __myfs_read_implem
     printf("\n__myfs_read_implem():\n");
     size = 17;
     offset = 0;
     buf = malloc(size);
-    ret_val = __myfs_read_implem(fsptr, fssize, errnoptr, filepath, buf, size, offset);
+    ret_val = __myfs_read_implem(fsptr, fssize, errnoptr, "/test1", buf, size, offset);
 
     printf("(%d bytes)\n", ret_val); 
     write(fileno(stdout), buf, ret_val);
-    
-    printf("\n");
     free(buf);
+    printf("\n");
 
 
     /////////////////////////////////////////////////////////////////////////

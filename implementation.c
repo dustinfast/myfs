@@ -574,17 +574,50 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
     FSHandle *fs;       // Handle to the file system
-    Inode *inode;       // Inode for the given path
 
     // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
     if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
 
-    // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
-    if ((!(inode = fs_pathresolve(fs, path, errnoptr)))) return -1;
+    // Split the given path into seperate path and filename elements
+    char *abspath, *fname;
+    char *start, *token, *next;
 
-    /* STUB */
+    abspath = malloc(1);            // Init abs path array
+    *abspath = '\0';
     
-    return -1;
+    start = next = strdup(path);    // Duplicate path so we can manipulate it
+    next++;                         // Skip initial seperator
+
+    while ((token = strsep(&next, FS_PATH_SEP))) {
+        if (!next) {
+            fname = token;
+        } else {
+            abspath = realloc(abspath, str_len(abspath) + str_len(token) + 1);
+            strcat(abspath, FS_PATH_SEP);
+            strcat(abspath, token);
+        }
+    }
+
+    if (*abspath == '\0') {
+        strcat(abspath, FS_PATH_SEP);
+    }
+
+    // Debug
+    // printf("Creating File -\nabspath: %s\nfname: %s\n", abspath, fname);
+
+    // Create the file
+    Inode *newfile = file_new(fs, abspath, fname, "", 0);
+    
+    // Cleanup
+    free(abspath);
+    free(start);
+
+    if (!newfile) {
+        *errnoptr = EINVAL;
+        return -1;                  // Fail - bad fname, or file already exists
+    }
+
+    return 0;  // Success
 }
 
 /* Implements an emulation of the unlink system call for regular files
