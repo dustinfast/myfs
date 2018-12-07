@@ -1,13 +1,5 @@
 # a4
 
-## Files
-* **originals (dir)**: Contains unmodified copies of the original assignment files
-* **a4_fs.c**: The filesystem logic
-* **a4_defs.h**: File system struct defs and generic helper funcs
-* **implemnetation.c**: Contains stubs we need to flesh out 
-* **myfs.c**: Contains helpers for FUSE 
-
-NOTE: The docstrings for implementation.c and myfs.c have largely been moved into this README file. (See below). For final turn-in, we should restore his header docstrings from the original copies (they contain copyright notices, etc.)
 
 ## Contributions
 
@@ -16,9 +8,42 @@ __Joel Keller__: implementation.c
 __Christoph Lauter__: myfs.c and implementation.c skeleton
 __Brooks Woods__: implementation.c
 
+## File Hierarchy
+* **implemnetation.c**: Filesystem emulations and helper functions
+* **implementation.h**: File system struct defs and generic helper functions
+* **myfs.c**: FUSE interface and helper functions
+
+### The filesystem:
+
++ File system structure in memory is:
+     _ _ _ _ _ _ _ _ _______________________ ___________________________
+    |   FSHandle    |       Inodes          |       Memory Blocks       | 
+    |_ _ _ _ _ _ _ _|_______________________|___________________________|
+    ^               ^                       ^
+    fsptr           Inodes Segment          Memory Blocks segment
+                    (0th is root inode)     (0th is root dir memory block)
+
+    + Memory blocks look like:
+     ______________ ________________________
+    |   MemHead    |         Data           |
+    |______________|________________________|
+
+
+    Directory file data field structure:
+        Ex: "dir1:offset\ndir2:offset\nfile1:offset"
+        Ex: "file1:offset\nfile2:offset"
+
+    Design Decisions:
+        Assume a single process accesses the fs at a time?
+        To begin writing data before checking fs has enough room?
+        Assume only absolute paths passed to 13 funcs?
+        Filename and path chars to allow.
+        Simple design vs. Better design.
+
 ## Assignment Instructions
 
 ### The File system must not:
+
 * Segfault
 * Fail with exit(1) in case of an error.
 * Depend on memory outside of the filesystem memory regionf
@@ -27,7 +52,8 @@ the start of the memory region representing the filesystem.
 *Store any pointer directly to mem pointed to by fsptr; instead store 
 offsets from the start of the mem region.
 
-### The filesystem:
+### The File system must:
+
 * Must Run in memory (memory comes from mmap).
 * Must support all the 13 operations stubbed out below.
 * Must support access and modification times and statfs info.
