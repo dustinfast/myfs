@@ -809,27 +809,33 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Read file data
     char* full_buf = malloc(0);
     char *cpy_buf = full_buf;
+    int cpy_size = 0;
     size_t data_size = file_data_get(fs, path, full_buf);
 
     // If offset is past end of data, zero-bytes readable
     if (offset >= data_size)  
-        return 0;  
+        return 0;
 
-    // Set data index and adjust size based on offset param
+    // Set data index and num bytes to read based on offset param
     cpy_buf += offset;
-    size_t diff = cpy_buf - full_buf;
-    if (size > diff)
-        size = diff;
+    int diff = cpy_buf - full_buf;
+    cpy_size = data_size - offset;
 
     // debug
-    printf("READ full_buff: %s\n", full_buf);
-    printf("READ cpy_buff : %s\n", cpy_buf);
-    printf("READ diff: %lu\n", diff);
-    printf("READ size: %lu\n", size);
+    // printf("\nsize requested: %lu\n", size);
+    // printf("offset requested: %lu\n", offset);
+    // printf("data size: %lu\n", data_size);
+    // printf("diff: %d\n", diff);
+    // printf("actual cpy size: %d\n\n", cpy_size);
+    // printf("full_buff:\n");
+    // write(fileno(stdout), full_buf, data_size);
+    // printf("\ncpy_buff:\n");
+    // write(fileno(stdout), cpy_buf, cpy_size);
+    // printf("\n");
 
-    // Copy size bytes into buf and return total bytes written 
-    memcpy(buf, cpy_buf, size);
-    return size;
+    // Copy cpy_size bytes into buf and return num bytes written 
+    memcpy(buf, cpy_buf, cpy_size);
+    return cpy_size;
 }
 
 /* Implements an emulation of the write system call on the filesystem 
@@ -931,8 +937,7 @@ int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
 /* Begin DEBUG  ----------------------------------------------------------- */
 
 
-# include "debuglib.h"  // For debug use only
-                        // Includes main() and debug output functions
-
+# include "debuglib.h"  // Includes main() and debug output functions
+                        // For dev use only - Comment out for prod
 
 /* End DEBUG  ------------------------------------------------------------- */

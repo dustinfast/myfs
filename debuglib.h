@@ -70,8 +70,8 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
 
 // Sets up files inside the filesystem for debugging purposes
 void static init_files_debug(FSHandle *fs) {
-    printf(" INFO: Initializing test files/folders (");
-    printf("/, /dir1, /dir1/file1 through /dir1/file4, and /file5)\n");
+    printf("DEBUG: Initializing test files/folders ");
+    printf("/, /dir1, /dir1/file1 through /dir1/file4, and /file5\n");
 
     // Init test dirs/files
     Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
@@ -107,7 +107,7 @@ int main()
 
     size_t fssize = kb_to_bytes(32) + ST_SZ_FSHANDLE;
 
-     // Allocate fs space and associate with a filesys handle
+    // Allocate fs space and associate with a filesys handle
     void *fsptr = malloc(fssize); 
     FSHandle *fs = fs_init(fsptr, fssize);
 
@@ -119,25 +119,53 @@ int main()
     ////////////////////////////////////////////////////////////////////////
     // Display test file/directory attributes
 
+    char file1_path[] =  "/dir1/file1";
+    char file2_path[] =  "/dir1/file2";
+    char file3_path[] =  "/dir1/file3";
+    char file4_path[] =  "/dir1/file4";
+    char file5_path[] =  "/file5";
+
     // Root dir
     printf("\nExamining / ");
     print_inode_debug(fs, fs_rootnode_get(fs));
-
+    
     // Dir 1
     printf("\nExamining /dir1 ");
     print_inode_debug(fs, resolve_path(fs, "/dir1"));
 
     // File1
     printf("\nExamining /dir1/file1 ");
-    print_inode_debug(fs, resolve_path(fs, "/dir1/file1"));
+    print_inode_debug(fs, resolve_path(fs, file1_path));
 
     // File2
     printf("\nExamining /dir1/file2 ");
     print_inode_debug(fs, resolve_path(fs, "/dir1/file2"));
 
-    // File 5 (screen hog)
-    // printf("\nExamining /file5 ");
-    // print_inode_debug(fs, resolve_path(fs, "/file5"));
+    // File 5 (commented out because multi-memblock data hogs screen)
+    printf("\nExamining /file5 ");
+    print_inode_debug(fs, resolve_path(fs, "/file5"));
+
+    /////////////////////////////////////////////////////////////////////////
+    // Begin 13 stub tests
+
+    char *buf;
+    int *errnoptr;
+    size_t size, offset;
+    int ret_val;
+
+    char *path = file1_path;  // Path to test file
+
+    //  __myfs_read_implem
+    size = 1000;
+    offset = 0;
+    buf = malloc(size);
+    ret_val = __myfs_read_implem(fsptr, fssize, errnoptr, path, buf, size, offset);
+
+    printf("\nRECEIVED %d bytes from __myfs_read_implem():\n", ret_val); 
+    write(fileno(stdout), buf, ret_val);
+    printf("\n");
+
+    free(buf);
 
 
     /////////////////////////////////////////////////////////////////////////
