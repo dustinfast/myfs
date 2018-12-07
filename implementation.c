@@ -813,11 +813,32 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
     if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
 
     // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
-    if ((!(inode = fs_pathresolve(fs, path, errnoptr)))) return -1;
+    if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;
 
-    /* STUB */
-    
-    return -1;
+    // Read file data
+    char* full_buf = malloc(0);
+    char *cpy_buf = full_buf;
+    size_t data_size = file_data_get(fs, path, full_buf);
+
+    // If offset is past end of data, zero-bytes readable
+    if (offset >= data_size)  
+        return 0;  
+
+    // Set data index and adjust size based on offset param
+    cpy_buf += offset;
+    size_t diff = cpy_buf - full_buf;
+    if (size > diff)
+        size = diff;
+
+    // debug
+    printf("READ full_buff: %s\n", );
+    printf("READ cpy_buff : %s\n", );
+    printf("READ diff: %lu\n", );
+    printf("READ size: %lu\n", );
+
+    // Copy size bytes into buf and return total bytes written 
+    memcpy(buf, cpy_buf, size);
+    return size;
 }
 
 /* Implements an emulation of the write system call on the filesystem 
