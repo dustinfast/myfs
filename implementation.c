@@ -807,7 +807,7 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
     if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;
 
     // Read file data
-    char* full_buf = malloc(0);
+    char* full_buf = malloc(1);
     char *cpy_buf = full_buf;
     int cpy_size = 0;
     size_t data_size = file_data_get(fs, path, full_buf);
@@ -835,6 +835,8 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // Copy cpy_size bytes into buf and return num bytes written 
     memcpy(buf, cpy_buf, cpy_size);
+
+    free(full_buf);
     return cpy_size;
 }
 
