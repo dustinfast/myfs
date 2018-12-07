@@ -4,7 +4,7 @@
 */
 
 // Print filesystem's data structure sizes
-void print_struct_debug() {
+static void print_struct_debug() {
     printf("File system's data structures:\n");
     printf("    FSHandle        : %lu bytes\n", ST_SZ_FSHANDLE);
     printf("    Inode           : %lu bytes\n", ST_SZ_INODE);
@@ -16,7 +16,7 @@ void print_struct_debug() {
 }
 
 // Print filesystem stats
-void print_fs_debug(FSHandle *fs) {
+static void print_fs_debug(FSHandle *fs) {
     printf("File system properties: \n");
     printf("    fs (fsptr)      : %lu\n", (lui)fs);
     printf("    fs->num_inodes  : %lu\n", (lui)fs->num_inodes);
@@ -30,7 +30,7 @@ void print_fs_debug(FSHandle *fs) {
 }
 
 // Print inode stats
-void print_inode_debug(FSHandle *fs, Inode *inode) {
+static void print_inode_debug(FSHandle *fs, Inode *inode) {
     if (inode == NULL) printf("    FAIL: inode is NULL.\n");
 
     printf("Inode -\n");
@@ -54,8 +54,18 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
     printf("      data           : %s\n",  (char*)(memhead + ST_SZ_MEMHEAD));
 }
 
+// Prints a "Result" or "Fail" line to the console based on the given value.
+static void print_result_debug(int result) {
+    if (!result)
+        printf("Success");
+    else
+        printf("Fail");
+    printf("\n");
+}
+
+
 // Sets up files inside the filesystem for debugging purposes
-void static init_files_debug(FSHandle *fs) {
+static void init_files_debug(FSHandle *fs) {
     printf("\n--- Initializing test files/folders ---");
 
     // Init test dirs/files
@@ -151,24 +161,15 @@ int main()
     printf("\n__myfs_getattr_implem():\n");
     result = __myfs_getattr_implem(fsptr, fssize, &errnoptr, 0, 0, filepath, stbuf);
     free(stbuf);
-    
-    if (!result)
-        printf("Success");
-    else
-        printf("Fail");
-    printf("\n");
+    print_result_debug(result);
 
     //// TODO: __myfs_readdir_implem
 
     // __myfs_mknod_implem()
     printf("\n__myfs_mknod_implem():\n");
     result = __myfs_mknod_implem(fsptr, fssize, &errnoptr, "/dir1/test1");
+    print_result_debug(result);
 
-    if (!result)
-        printf("Success");
-    else
-        printf("Fail");
-    printf("\n");
 
     //// TODO: __myfs_unlink_implem
 
@@ -182,6 +183,7 @@ int main()
     printf("\n__myfs_truncate_implem():\n");
     offset = 5;
     result = __myfs_truncate_implem(fsptr, fssize, &errnoptr, filepath, offset);
+    print_result_debug(result);
 
     //// TODO: __myfs_open_implem
 
