@@ -831,10 +831,10 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
         size = diff;
 
     // debug
-    printf("READ full_buff: %s\n", );
-    printf("READ cpy_buff : %s\n", );
-    printf("READ diff: %lu\n", );
-    printf("READ size: %lu\n", );
+    printf("READ full_buff: %s\n", full_buf);
+    printf("READ cpy_buff : %s\n", cpy_buf);
+    printf("READ diff: %lu\n", diff);
+    printf("READ size: %lu\n", size);
 
     // Copy size bytes into buf and return total bytes written 
     memcpy(buf, cpy_buf, size);
@@ -976,32 +976,19 @@ void print_inode_debug(FSHandle *fs, Inode *inode) {
     // free(buff);
 }
 
-int main() 
-{
-    printf("------------- File System Test Space -------------\n");
-    printf("--------------------------------------------------\n\n");
-    print_struct_debug();
-      
-    /////////////////////////////////////////////////////////////////////////
-    // Begin file system init  
+// Sets up files inside the filesystem for debugging purposes
+void static init_files_debug(FSHandle *fs) {
+    printf(" INFO: Initializing test files/folders (");
+    printf("/, /dir1, /dir1/file1 through /dir1/file4, and /file5)\n");
 
-    size_t fssize = kb_to_bytes(32) + ST_SZ_FSHANDLE;  // kb align after handle
-    void *fsptr = malloc(fssize);  // Allocate fs space (usually done by myfs.c)
+    // Init test dirs/files
+    Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
+    Inode *file1 = file_new(fs, "/dir1", "file1", "hello from file 1", 17);
+    Inode *file2 = file_new(fs, "/dir1", "file2", "hello from file 2", 17);
+    Inode *file3 = file_new(fs, "/dir1", "file3", "hello from file 3", 17);
+    Inode *file4 = file_new(fs, "/dir1", "file4", "hello from file 4", 17);
     
-    // Associate the filesys with a handle.
-    printf("\nCreating filesystem...\n");
-    FSHandle *fs = fs_init(fsptr, fssize);
-
-    printf("\n");
-    print_fs_debug(fs);
-
-    /////////////////////////////////////////////////////////////////////////
-    // Begin test files/dirs
-
-    printf("\n---- Starting Test Files/Directories -----\n");
-    printf("Test Contents: /, /dir1, /dir1/file1, /file2\n");
-
-    // File2 data: a str a's & b's & terminated with a 'c'. Spans 2 memblocks
+    // Init file 5 consisting of a lg string of a's & b's & terminated with a 'c'.
     size_t data_sz = DATAFIELD_SZ_B * 1.25;
     char *lg_data = malloc(data_sz);
     for (size_t i = 0; i < data_sz; i++) {
@@ -1013,14 +1000,30 @@ int main()
         else
             *c = 'b';
     }
-
-    // Init test dirs/files
-    Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
-    Inode *file1 = file_new(fs, "/dir1", "file1", "hello from file 1", 17);
-    Inode *file2 = file_new(fs, "/dir1", "file3", "hello from file 3", 17);
-    Inode *file3 = file_new(fs, "/dir1", "file4", "hello from file 4", 17);
-    Inode *file4 = file_new(fs, "/dir1", "file5", "hello from file 5", 17);
     Inode *file5 = file_new(fs, "/", "file5", lg_data, data_sz);
+}
+
+
+int main() 
+{
+    printf("------------- File System Test Space -------------\n");
+    printf("--------------------------------------------------\n\n");
+    print_struct_debug();
+      
+    /////////////////////////////////////////////////////////////////////////
+    // Begin test filesys init  
+
+    size_t fssize = kb_to_bytes(32) + ST_SZ_FSHANDLE;  // kb align after handle
+    void *fsptr = malloc(fssize);  // Allocate fs space (usually done by myfs.c)
+    
+    
+    printf("\nCreating filesystem...\n");
+    FSHandle *fs = fs_init(fsptr, fssize); // Associate filesys mem w/handle
+
+    printf("\n");
+    print_fs_debug(fs);  // Display fs properties
+
+    init_files_debug(fs);  // Init test files/dirs
 
     ////////////////////////////////////////////////////////////////////////
     // Display test file/directory attributes
@@ -1037,9 +1040,13 @@ int main()
     printf("\nExamining /dir1/file1 ");
     print_inode_debug(fs, resolve_path(fs, "/dir1/file1"));
 
-    // File 2 (screen hog)
-    // printf("\nExamining /file5 ");
-    // print_inode_debug(fs, resolve_path(fs, "/file5"));
+    // File2
+    printf("\nExamining /dir1/file2 ");
+    print_inode_debug(fs, resolve_path(fs, "/dir1/file2"));
+
+    // File 5
+    printf("\nExamining /file5 ");
+    print_inode_debug(fs, resolve_path(fs, "/file5"));
 
 
     /////////////////////////////////////////////////////////////////////////
@@ -1049,6 +1056,6 @@ int main()
     free(fsptr);
 
     return 0; 
-} 
+}
 
 /* End DEBUG  ------------------------------------------------------------- */
