@@ -765,19 +765,18 @@ int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Read file data
     char* cpy_buf = malloc(1);
     size_t data_size = file_data_get(fs, path, cpy_buf);
-    size_t diff = data_size - offset;
 
     // If request makes file larger
     if (offset > data_size) {
-        printf("Expanding (offset=%lu, data_sz=%lu)...\n", offset, data_size);
+        size_t diff = offset- data_size;
+        // printf("Expanding (offset=%lu, data_sz=%lu, diff=%lu)...\n", offset, data_size, diff);  // debug
         char *diff_arr = malloc(diff);
         memset(diff_arr, 0, diff);
-        // memcpy(diff_arr, 0, diff);                  // Fill arr with zeroes
         inode_data_append(fs, inode, diff_arr);     // Append zeroes to file
     }
     // Else, if request makes file smaller
     else if (offset < data_size) {
-        printf("Shrinking (offset=%lu, data_sz=%lu)...\n", offset, data_size);
+        // printf("Shrinking (offset=%lu, data_sz=%lu)...\n", offset, data_size);  // debug
         inode_data_remove(fs, inode);
         cpy_buf[offset] = '\0';
         inode_data_append(fs, inode, cpy_buf);

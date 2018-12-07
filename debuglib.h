@@ -180,7 +180,7 @@ int main()
 
     // __myfs_truncate_implem
     printf("\n__myfs_truncate_implem():\n");
-    offset = 14;
+    offset = 5;
     result = __myfs_truncate_implem(fsptr, fssize, &errnoptr, filepath, offset);
 
     //// TODO: __myfs_open_implem
@@ -203,6 +203,8 @@ int main()
     
     //// TODO: __myfs_statfs_implem
     
+    // print_inode_debug(fs, resolve_path(fs, path_file2));
+
 
     /////////////////////////////////////////////////////////////////////////
     // Cleanup
