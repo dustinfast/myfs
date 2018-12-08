@@ -242,24 +242,6 @@ int main()
     print_result_debug(statfs0, result, 0);
 
 
-    // truncate
-    char truncate0[] = "truncate_implem(SUCCESS):\n";
-    result = __myfs_truncate_implem(fsptr, fssize, &e, filepath, 5);
-    print_result_debug(truncate0, result, 0);
-    buf = malloc(1);
-    sz = file_data_get(fs, filepath, buf);
-    printf("%s (%lu bytes)", buf, sz);
-    free(buf);
-
-    char truncate1[] = "truncate_implem(FAIL/NOEXSIST):\n";
-    result = __myfs_truncate_implem(fsptr, fssize, &e, nofilepath, 5);
-    print_result_debug(truncate1, result, -1);
-
-    char truncate2[] = "truncate_implem(FAIL/BADPATH):\n";
-    result = __myfs_truncate_implem(fsptr, fssize, &e, badpath, 5);
-    print_result_debug(truncate2, result, -1);
-
-
     // open
     char open0[] = "open_implem(SUCCESS):\n";
     result = __myfs_open_implem(fsptr, fssize, &e, filepath);
@@ -268,6 +250,7 @@ int main()
     char open1[] = "open_implem(FAIL/NOEXIST):\n";
     result = __myfs_open_implem(fsptr, fssize, &e, filepath);
     print_result_debug(open1, result, 0);
+
 
     // read
     printf("\nread_implem('Hello from file 2'):\n");
@@ -283,9 +266,27 @@ int main()
     result = __myfs_write_implem(
         fsptr, fssize, &e, filepath, "test write", 10, 11);
     printf("(%d bytes written)\n", result); 
+    buf = malloc(1);
     sz = file_data_get(fs, filepath, buf);
-    printf("%s", buf);
+    write(fileno(stdout), buf, sz);
     free(buf);
+
+    
+    // truncate
+    printf("\n\ntruncate_implem(SUCCESS):\n");
+    result = __myfs_truncate_implem(fsptr, fssize, &e, filepath, 5);
+    buf = malloc(1);
+    sz = file_data_get(fs, filepath, buf);
+    write(fileno(stdout), buf, result);
+    free(buf);
+
+    // char truncate1[] = "truncate_implem(FAIL/NOEXSIST):\n";
+    // result = __myfs_truncate_implem(fsptr, fssize, &e, nofilepath, 5);
+    // print_result_debug(truncate1, result, -1);
+
+    // char truncate2[] = "truncate_implem(FAIL/BADPATH):\n";
+    // result = __myfs_truncate_implem(fsptr, fssize, &e, badpath, 5);
+    // print_result_debug(truncate2, result, -1);
 
     //// TODO: __myfs_readdir_implem
 

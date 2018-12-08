@@ -8,8 +8,11 @@
 
   University of Alaska Anchorage, College of Engineering.
 
-  Contributors: Dustin Fast
+  Authors:      Dustin Fast
                 Christoph Lauter
+
+  Contributors: Joel Keller
+                Brooks Woods
 
   and based on 
 
@@ -1077,13 +1080,12 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
         // Build 1st half of new_data from existing file data, starting at offset
         new_data = strndup(orig_data, offset);
 
-        // Set 2nd half of new_data - size bytes from the buf param
+        // Set 2nd half of new_data: size bytes from the buf param
         new_data_sz = offset + size;
         new_data = realloc(new_data, new_data_sz);
         memcpy(new_data + offset, buf, size);
 
         // Replace the file's data with the new data
-        inode_data_remove(fs, inode);
         inode_data_set(fs, inode, new_data, new_data_sz);
 
         // Cleanup
