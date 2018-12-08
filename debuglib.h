@@ -267,7 +267,11 @@ int main()
     write(fileno(stdout), data, result);
     printf("\n");
 
-    //// TODO: __myfs_utimens_implem
+    //// __myfs_utimens_implem
+    printf("\n__myfs_utims_implem(SUCCESS):\n");
+    const struct timespec ts[2];
+    result = __myfs_utimens_implem(fsptr, fssize, &errnoptr, filepath, ts);
+    print_result_debug(result);
     
     //// TODO: __myfs_statfs_implem
     

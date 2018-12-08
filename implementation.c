@@ -1120,9 +1120,10 @@ int __myfs_utimens_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
     if ((!(inode = fs_pathresolve(fs, path, errnoptr)))) return -1;
 
-    /* STUB */
+    memcpy(inode->last_acc, &ts[0], sizeof(struct timespec));
+    memcpy(inode->last_mod, &ts[1], sizeof(struct timespec));
     
-    return -1;
+    return 0;
 }
 
 /* Implements an emulation of the statfs system call on the filesystem 
