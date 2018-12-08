@@ -762,7 +762,7 @@ int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // Read file data
     char* orig_data = malloc(1);
-    size_t data_size = file_data_get(fs, path, orig_data);
+    size_t data_size = inode_data_get(fs, inode, orig_data);
 
     // If request makes file larger
     if (offset > data_size) {
@@ -860,7 +860,7 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
     char* full_buf = malloc(1);
     char *cpy_buf = full_buf;
     int cpy_size = 0;
-    size_t data_size = file_data_get(fs, path, full_buf);
+    size_t data_size = inode_data_get(fs, inode, full_buf);
 
     // If offset is past end of data, zero-bytes readable
     if (offset >= data_size) { 
@@ -922,7 +922,7 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
         char *new_data;
         int new_data_sz;
         char *orig_data = malloc(1);
-        size_t orig_sz = file_data_get(fs, path, orig_data);  // TODO: Replace file_data_get() w/inode_data_get()
+        size_t orig_sz = inode_data_get(fs, inode, orig_data);
 
         // If offset is beyond end of data, zero-bytes to write
         if (offset >= orig_sz) { 
