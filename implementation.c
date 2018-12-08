@@ -395,10 +395,10 @@ static int dir_remove(FSHandle *fs, const char *path) {
         par_data_sz = inode_data_get(fs, parent, par_data);
         
         // debug
-        printf("Removing dir -\npath: %s\ndirname: %s\n", path, dirname);
-        printf("Parent data (len=%lu): %s \n", par_data_sz, par_data);
-        printf("Remove line (len=%lu): %s", line_sz, rmline);
-        printf("sz1 = %lu, sz2 = %lu\n\n", sz1, sz2);
+        // printf("Removing dir -\npath: %s\ndirname: %s\n", path, dirname);
+        // printf("Parent data (len=%lu): %s \n", par_data_sz, par_data);
+        // printf("Remove line (len=%lu): %s", line_sz, rmline);
+        // printf("sz1 = %lu, sz2 = %lu\n\n", sz1, sz2);
 
         // Update the parent to reflect removal of dir
         inode_data_set(fs, parent, new_data, sz1 + sz2);
@@ -417,9 +417,8 @@ static int dir_remove(FSHandle *fs, const char *path) {
     
         return 1; // Success
 
-    } else {
+    } else
         return 0; // Fail (bad path)
-    }
 }
 
 
@@ -653,8 +652,43 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
     if ((!(inode = fs_pathresolve(fs, path, errnoptr)))) return -1;
 
-    /* STUB */
-    
+    // Ensure path denotes a dir
+    if (!inode->is_dir) {
+        *errnoptr = EINVAL;
+        return -1;
+    }
+
+    // Get the directory's lookup table and add an extra end char
+    char *data = malloc(0);
+    size_t data_sz = inode_data_get(fs, inode, data);
+    data = realloc(data, data_sz + 1);
+    memset(data + data_sz + 1, FS_DIRDATA_END, 1);
+
+    // Build the names array from the lookup table data
+    char *names, *start, *token, *next, *curr, *temp;
+    size_t names_count = 0;
+    size_t names_sz = 0;
+
+    names = malloc(1);
+    start = next = prev = data;
+    while ((token = strsep(&next, FS_DIRDATA_END))) {
+        printf("token: %s\n", token);
+
+        // memcpy(names + names_sz, token, 
+
+        // int diff = prev - 
+        // names_sz += prev 
+        // names = realloc(names, names_sz + );
+
+        // prev = strsep(&next, FS_DIRDATA_END)
+
+        // memset(contents + contents_sz, '\0', 1);
+        // names_count++;
+    }
+
+    free(data);
+    namesptr = names;
+
     return -1;
 }
 

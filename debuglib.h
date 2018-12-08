@@ -279,7 +279,6 @@ int main()
     write(fileno(stdout), buf, sz);
     free(buf);
 
-
     // rename
     // TODO: Not working
     char rename1[] = "\nrename_implem(SUCCESS):\n";
