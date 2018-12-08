@@ -273,20 +273,13 @@ int main()
 
     
     // truncate
-    printf("\n\ntruncate_implem(SUCCESS):\n");
+    printf("\n\ntruncate_implem('hello''):\n");
     result = __myfs_truncate_implem(fsptr, fssize, &e, filepath, 5);
     buf = malloc(1);
     sz = file_data_get(fs, filepath, buf);
-    write(fileno(stdout), buf, result);
+    write(fileno(stdout), buf, sz);
     free(buf);
-
-    // char truncate1[] = "truncate_implem(FAIL/NOEXSIST):\n";
-    // result = __myfs_truncate_implem(fsptr, fssize, &e, nofilepath, 5);
-    // print_result_debug(truncate1, result, -1);
-
-    // char truncate2[] = "truncate_implem(FAIL/BADPATH):\n";
-    // result = __myfs_truncate_implem(fsptr, fssize, &e, badpath, 5);
-    // print_result_debug(truncate2, result, -1);
+    
 
     //// TODO: __myfs_readdir_implem
 
