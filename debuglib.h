@@ -71,7 +71,6 @@ static void init_files_debug(FSHandle *fs) {
 
     // Init test dirs/files
     Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
-    Inode *dir2 = dir_new(fs, fs_rootnode_get(fs), "dir2");
     Inode *file1 = file_new(fs, "/dir1", "file1", "hello from file 1", 17);
     Inode *file2 = file_new(fs, "/dir1", "file2", "hello from file 2", 17);
     // Inode *file3 = file_new(fs, "/dir1", "file3", "hello from file 3", 17);
@@ -282,10 +281,9 @@ int main()
 
 
     // rename
-    char rename1[] = "\nrename_implem(FAIL/NOEXIST):\n";
-    result = __myfs_rename_implem(fsptr, fssize, &e, filepath, "/file2");
+    char rename1[] = "\nrename_implem(SUCCESS):\n";
+    result = __myfs_rename_implem(fsptr, fssize, &e, "/dir1", "/dir2");
     print_result_debug(rename1, result, 0);
-
 
     //// TODO: __myfs_readdir_implem
 
@@ -293,7 +291,7 @@ int main()
 
     // print_inode_debug(fs, fs_rootnode_get(fs));
 
-    // print_inode_debug(fs, resolve_path(fs, filepath));
+    print_inode_debug(fs, resolve_path(fs, "/dir2"));
 
     /////////////////////////////////////////////////////////////////////////
     // Cleanup

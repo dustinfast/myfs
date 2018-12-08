@@ -906,70 +906,88 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
     size_t from_idx = path_name_offset(from, &from_len);
     size_t to_idx = path_name_offset(to, &to_len);
 
-    char *from_path = strndup(from, from_idx - 1);
+    char *from_path = strndup(from, (from_idx > 1 ) ? from_idx-1 : from_idx);
     char *to_path = strndup(to, to_idx);
+    char *to_name = strndup(to + to_idx, to_len - to_idx);
 
     Inode *from_parent = fs_pathresolve(fs, from_path, errnoptr);
     Inode *to_parent = fs_pathresolve(fs, to_path, errnoptr);
 
+    printf("\n\nFrom: %s (idx=%lu)\n", from_path, from_len);
+    printf("To: %s (idx=%lu)\n", to_path, from_idx);
+
     free(from_path);
     free(to_path);
 
-    char *from_name = strndup(from + from_idx, from_len - from_idx);
-    char *to_name = strndup(to + to_idx, to_len - to_idx);
+    Inode *from_child = fs_pathresolve(fs, from, errnoptr);
+    Inode *to_child = fs_pathresolve(fs, to, errnoptr);
 
-    Inode *from_child = fs_pathresolve(fs, from_name, errnoptr);
-    Inode *to_child = fs_pathresolve(fs, to_name, errnoptr);
 
-    free(from_child);
-    free(to_child);
 
     // Ensure all the boys are in the band
     if (!from_parent || !from_child || !to_parent) {
         *errnoptr = EINVAL;
+        free(to_name);
         return -1;
     }
 
-    // If 'from' is a directory, 'to' must must not exist or be an empty dir
+    // Begin the move...
+    char *data;
+    size_t sz; 
+    // If 'from' is a directory, 'to' must either not exist or be an empty dir
     if(from_child->is_dir) {
         // If the destination doesn't exist, create it and move the data
         if(!to_child) {
-            
+            Inode *dest = dir_new(fs, to_parent, to_name);  // Create dest
+            data = malloc(0);
+            sz = inode_data_get(fs, from_child, data);      // Get old data
+            inode_data_set(fs, dest, data, sz);             // Copy to dest
+            dir_remove(fs, from);                           // Remove old dir
         } 
         
         // If dest does exist and is empty, overwrite it with 'to'
-        else if (!to_child->file_size_b) {
-             
-        } 
+        else if (to_child->is_dir && !to_child->file_size_b) {
+            dir_remove(fs, to_child);                       // Remove dest            
+            Inode *dest = dir_new(fs, to_parent, to_name);  // Recreate dest
+            data = malloc(0);
+            sz = inode_data_get(fs, from_child, data);      // Get old data
+            inode_data_set(fs, dest, data, sz);             // Copy to dest
+            dir_remove(fs, from);                           // Remove old dir
+        }
         
         // Else, error
         else {
             *errnoptr = EINVAL;
+            free(to_name);
             return -1;
         }
+
     }
 
     // Else, 'from' is a regular file
     else {
         // If the destination exists, atomically overwrite it
         if(to_child) {
-
+            // dir_remove(fs, to_child);                       // Remove dest            
+            // Inode *dest = dir_new(fs, to_parent, to_name);  // Recreate dest
+            // data = malloc(0);
+            // sz = inode_data_get(fs, from_child, data);      // Get old data
+            // inode_data_set(fs, dest, data, sz);             // Copy to dest
+            // dir_remove(fs, from);                           // Remove old dir
         }
 
-        // Else, create it and movethe data
+        // Else, create it and move the data
         else {
-
+            
         }
 
     }
 
 
-    printf("\n\nFrom: %s (idx=%lu)\n", from_name, from_len);
-    printf("To: %s (idx=%lu)\n", to_name, from_idx);
-
-    // if (strncmp(path, FS_PATH_SEP, 1) != 0) {
-    // }
     
+    free(data);    
+    free(to_name);
+
     return 0;
 }
 
