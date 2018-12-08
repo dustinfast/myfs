@@ -281,8 +281,9 @@ int main()
 
 
     // rename
+    // TODO: Not working
     char rename1[] = "\nrename_implem(SUCCESS):\n";
-    result = __myfs_rename_implem(fsptr, fssize, &e, "/dir1", "/dir2");
+    result = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/file1", "/file1");
     print_result_debug(rename1, result, 0);
 
     //// TODO: __myfs_readdir_implem
@@ -291,7 +292,7 @@ int main()
 
     // print_inode_debug(fs, fs_rootnode_get(fs));
 
-    print_inode_debug(fs, resolve_path(fs, "/dir2"));
+    print_inode_debug(fs, resolve_path(fs, "/"));
 
     /////////////////////////////////////////////////////////////////////////
     // Cleanup
