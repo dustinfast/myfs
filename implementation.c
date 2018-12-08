@@ -9,9 +9,7 @@
   University of Alaska Anchorage, College of Engineering.
 
   Contributors: Dustin Fast
-                Joel Keller
                 Christoph Lauter
-                Brooks Woods
 
   and based on 
 
@@ -72,7 +70,13 @@ static FSHandle *fs_handle(void *fsptr, size_t fssize, int *errnoptr) {
 // A debug function to simulate a resolve_path() call. 
 // Returns some hardcoded test inode (ex: the root dir).
 // On fail, sets errnoptr to ENOENT and returns NULL.
+// Assumes: path is absolute.
 static Inode *fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr) {
+    if (strncmp(path, FS_PATH_SEP, 1) != 0) {
+        *errnoptr = EINVAL;
+        return NULL;                // No root dir symbol in path
+    }
+
     Inode *inode = resolve_path(fs, path);
     if (!inode && errnoptr) *errnoptr = ENOENT;
     return inode;
@@ -82,8 +86,6 @@ static Inode *fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr) {
 /* End Filesystem Helpers ------------------------------------------------- */
 /* Begin Inode helpers ---------------------------------------------------- */
 
-
-// TODO: static void inode_free(FSHandle *fs, Inode *inode)
 
 // Populates buf with a string representing the given inode's data.
 // Returns: The size of the data at buf.
@@ -108,8 +110,9 @@ static void inode_data_remove(FSHandle *fs, Inode *inode) {
         
     } while (block_next != (MemHead*)fs);  // i.e. memblock->offset_nextblk == 0
 
-    // Update the inode to reflect disassociation and associate new memblock.
+    // Update the inode to reflect the disassociation and replace memblock
     inode->file_size_b = 0;
+    // *(int*)(&inode->file_size_b) = 0;   // TODO: Test
     inode->offset_firstblk = (size_t*)offset_from_ptr(fs, memblock_nextfree(fs));
     inode_lasttimes_set(inode, 1);
 }
@@ -208,9 +211,6 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
 /* End Inode helpers ------------------------------------------------------ */
 /* Begin Directory helpers ------------------------------------------------ */
 
-
-// TODO: static void dir_data_remove(FSHandle *fs, char *path)
-// TODO: static void dir_remove(FSHandle *fs, char *path)
 
 // Returns the inode for the given item (a sub-directory or file) having the
 // parent directory given by inode (Or NULL if item could not be found).
@@ -321,6 +321,102 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     return newdir_inode;
 }
 
+// Removes the directory denoted by the given inode from the file system.
+// Returns 1 on success, else 0.
+static int dir_remove(FSHandle *fs, const char *path) {
+    Inode *parent;
+    Inode *dir;
+
+    // Split the given path into seperate path and filename elements
+    char *par_path, *dirname;
+    char *start, *token, *next;
+
+    par_path = malloc(1);            // Init abs path array
+    *par_path = '\0';
+    
+    start = next = strdup(path);    // Duplicate path so we can manipulate it
+    next++;                         // Skip initial seperator
+
+    while ((token = strsep(&next, FS_PATH_SEP))) {
+        if (!next) {
+            dirname = token;
+        } else {
+            par_path = realloc(par_path, str_len(par_path) + str_len(token) + 1);
+            strcat(par_path, FS_PATH_SEP);
+            strcat(par_path, token);
+        }
+    }
+
+    if (*par_path == '\0')
+        strcat(par_path, FS_PATH_SEP);
+
+    // Get the inodes for the parent and dir
+    parent = resolve_path(fs, par_path);
+    dir = resolve_path(fs, dirname);
+
+    // Cleanup
+    free(par_path);
+    free(start);
+
+    // Ensure valid parent/dir
+    if (!parent || !dir)
+        return 0;
+    
+    // Denote dir's offset, in str form
+    char offset_str[1000];      // TODO: sz should be based on fs->num_inodes
+    size_t dir_offset = offset_from_ptr(fs, dir);
+    snprintf(offset_str, sizeof(offset_str), "%lu", dir_offset);
+
+    // Remove dir's lookup line (ex: "dirname:offset\n") from parent
+    char *dir_name = strdup(dir->name);
+    size_t data_sz = 0;
+    data_sz = str_len(dir_name) + str_len(offset_str) + 2; // +2 for : and \n
+    char *rmline = malloc(data_sz);
+
+    strcpy(rmline, dir_name);
+    strcat(rmline, FS_DIRDATA_SEP);
+    strcat(rmline, offset_str);
+    strcat(rmline, FS_DIRDATA_END);
+
+    // Read file data
+    char* par_data = malloc(1);
+    size_t par_data_sz = inode_data_get(fs, parent, par_data);
+
+    // Denote the start/end of the dir's lookup line
+    int line_sz = str_len(rmline);
+    char *line_start = strstr(par_data, rmline);
+    char *offsetend_ptr = line_start + line_sz;
+
+    // Build new parent data without the dir's lookup line
+    char *new_data = malloc(par_data_sz - line_sz);
+    size_t sz1 =  line_start - par_data;
+    size_t sz2 = par_data_sz - sz1 - line_sz;
+    strncpy(new_data, par_data, sz1);
+    strncpy(new_data + sz1, offsetend_ptr, sz2);
+
+    par_data = malloc(1);
+    par_data_sz = inode_data_get(fs, parent, par_data);
+    
+    // debug
+    // printf("Removing dir -\npar_path: %s\ndirname: %s\n", par_path, dirname);
+    // printf("Parent data: %s (len=%lu)\n", par_data, par_data_sz);
+    // printf("Remove line: %s (len=%lu)\n", rmline, str_len(rmline));
+    // printf("sz1 = %lu, sz2 = %lu\n", sz1, sz2);
+
+    // Update the parent to reflect removal of dir
+    inode_data_set(fs, parent, new_data, sz1 + sz2);
+    *(int*)(&parent->subdirs) = *(int*)(&parent->subdirs) - 1;
+
+    // Format the dir's inode
+    inode_data_remove(fs, dir); 
+    *(int*)(&dir->is_dir) = 0;
+    *(int*)(&dir->subdirs) = 0;
+
+    free(new_data);
+    free(rmline);
+    free(dir_name);
+}
+
 
 /* End Directory helpers ------------------------------------------------- */
 /* Begin File helpers ---------------------------------------------------- */
@@ -414,6 +510,7 @@ static int file_data_append(FSHandle *fs, char *path, char *append_data) {
 }
 
 // Resolves the given file or directory path and returns its associated inode.
+// Author: Joel Keller
 static Inode* resolve_path(FSHandle *fs, const char *path) {
     Inode* root_dir = fs_rootnode_get(fs);
 
@@ -678,9 +775,15 @@ int __myfs_rmdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
     if ((!(inode = fs_pathresolve(fs, path, errnoptr)))) return -1;
 
-    /* STUB */
-    
-    return -1;
+    // Ensure dir empty
+    if (inode->file_size_b)  {
+        *errnoptr = ENOTEMPTY;
+        return -1;
+    }
+
+    dir_remove(fs, path);
+
+    return 0; // success
 }
 
 /* Implements an emulation of the mkdir system call on the filesystem 

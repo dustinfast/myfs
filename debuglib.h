@@ -163,32 +163,46 @@ int main()
     int result;
 
     // __myfs_getattr_implem, for existing file
-    printf("\n__myfs_getattr_implem(SUCCESS):\n");
-    result = __myfs_getattr_implem(fsptr, fssize, &errnoptr, 0, 0, filepath, stbuf);
-    free(stbuf);
+    // printf("\n__myfs_getattr_implem(SUCCESS):\n");
+    // result = __myfs_getattr_implem(fsptr, fssize, &errnoptr, 0, 0, filepath, stbuf);
+    // free(stbuf);
+    // print_result_debug(result);
+
+    // // __myfs_getattr_implem, for non-existent file
+    // printf("\n__myfs_getattr_implem(FAIL):\n");
+    // result = __myfs_getattr_implem(fsptr, fssize, &errnoptr, 0, 0, nofilepath, stbuf);
+    // free(stbuf);
+    // print_result_debug(result);
+
+    // //// TODO: __myfs_readdir_implem
+
+    // // __myfs_mknod_implem, for non-existent file
+    // printf("\n__myfs_mknod_implem(SUCCESS):\n");
+    // result = __myfs_mknod_implem(fsptr, fssize, &errnoptr, newfilepath);
+    // print_result_debug(result);
+
+    // // __myfs_mknod_implem, where file already exists
+    // printf("\n__myfs_mknod_implem(FAIL):\n");
+    // result = __myfs_mknod_implem(fsptr, fssize, &errnoptr, filepath);
+    // print_result_debug(result);
+
+    // //// TODO: __myfs_unlink_implem
+
+    __myfs_mkdir_implem(fsptr, fssize, &errnoptr, "/td1");
+    Inode *t = resolve_path(fs, "/td1");
+    print_inode_debug(fs, t);
+
+    // __myfs_rmdir_implem for non-empty dir
+    printf("\n__myfs_rmdir_implem(SUCCESS):\n");
+    result = __myfs_rmdir_implem(fsptr, fssize, &errnoptr, "/td1");
     print_result_debug(result);
 
-    // __myfs_getattr_implem, for non-existent file
-    printf("\n__myfs_getattr_implem(FAIL):\n");
-    result = __myfs_getattr_implem(fsptr, fssize, &errnoptr, 0, 0, nofilepath, stbuf);
-    free(stbuf);
+    // __myfs_rmdir_implem for non-empty dir
+    printf("\n__myfs_rmdir_implem(FAIL):\n");
+    result = __myfs_rmdir_implem(fsptr, fssize, &errnoptr, dirpath);
     print_result_debug(result);
 
-    //// TODO: __myfs_readdir_implem
 
-    // __myfs_mknod_implem, for non-existent file
-    printf("\n__myfs_mknod_implem(SUCCESS):\n");
-    result = __myfs_mknod_implem(fsptr, fssize, &errnoptr, newfilepath);
-    print_result_debug(result);
-
-    // __myfs_mknod_implem, where file already exists
-    printf("\n__myfs_mknod_implem(FAIL):\n");
-    result = __myfs_mknod_implem(fsptr, fssize, &errnoptr, filepath);
-    print_result_debug(result);
-
-    //// TODO: __myfs_unlink_implem
-
-    //// TODO: __myfs_rmdir_implem
 
     // __myfs_mkdir_implem, for non-existent dir
     printf("\n__myfs_mkdir_implem(SUCCESS):\n");
@@ -200,7 +214,6 @@ int main()
     result = __myfs_mkdir_implem(fsptr, fssize, &errnoptr, badpath1);
     print_result_debug(result);
     
-
     //// TODO: __myfs_rename_implem
 
     // __myfs_truncate_implem
@@ -225,6 +238,23 @@ int main()
     write(fileno(stdout), buf, result);
     free(buf);
     printf("\n");
+
+
+    // // __myfs_read_implem after truncate
+    // printf("\n__myfs_read_implem(T):\n");
+    // result = __myfs_truncate_implem(fsptr, fssize, &errnoptr, filepath, 2);
+    // size = 20;
+    // offset = 0;
+    // buf = malloc(size);
+    // result = __myfs_read_implem(fsptr, fssize, &errnoptr, filepath, buf, size, offset);
+
+    // printf("(%d bytes read)\n", result); 
+    // write(fileno(stdout), buf, result);
+    // free(buf);
+    // printf("\n");
+
+    // print_inode_debug(fs, resolve_path(fs, filepath));
+
 
     //// __myfs_write_implem
     printf("\n__myfs_write_implem(SUCCESS):\n");
