@@ -265,15 +265,15 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
 static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     // Validate...
     if (!inode_isdir(inode)) {
-        printf("ERROR: %s is not a directory\n", dirname);
+        // printf("ERROR: %s is not a directory\n", dirname);
         return NULL; 
     } 
     if (!inode_name_isvalid(dirname)) {
-            printf("ERROR: %s is not a valid directory name\n", dirname);
+            // printf("ERROR: %s is not a valid directory name\n", dirname);
             return NULL;
     }
     if(dir_subitem_get(fs, inode, dirname) != NULL) {
-        printf("ERROR: %s already exists\n", dirname);
+        // printf("ERROR: %s already exists\n", dirname);
         return NULL;
     }
 
@@ -430,12 +430,12 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     Inode *parent = resolve_path(fs, path);
 
     if (!parent) {
-        printf("ERROR: invalid path\n");
+        // printf("ERROR: invalid path\n");
         return NULL;
     }
     
     if(dir_subitem_get(fs, parent, fname) != NULL) {
-        printf("ERROR: File already exists\n");
+        // printf("ERROR: File already exists\n");
         return NULL;
     }
 
@@ -457,7 +457,7 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     }
 
     if (!inode_name_set(inode, fname)) {
-        printf("ERROR: Invalid file name\n");
+        // printf("ERROR: Invalid file name\n");
         return NULL;
     }
     
