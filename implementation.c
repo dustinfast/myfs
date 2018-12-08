@@ -761,8 +761,8 @@ int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
     if ((!(inode = fs_pathresolve(fs, path, errnoptr)))) return -1;
 
     // Read file data
-    char* cpy_buf = malloc(1);
-    size_t data_size = file_data_get(fs, path, cpy_buf);
+    char* orig_data = malloc(1);
+    size_t data_size = file_data_get(fs, path, orig_data);
 
     // If request makes file larger
     if (offset > data_size) {
@@ -776,8 +776,11 @@ int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
     else if (offset < data_size) {
         // printf("Shrinking (offset=%lu, data_sz=%lu)...\n", offset, data_size);  // debug
         inode_data_remove(fs, inode);
-        cpy_buf[offset] = '\0';
-        inode_data_append(fs, inode, cpy_buf);
+        inode_data_set(fs, inode, orig_data, data_size);
+
+        // TODO: Test data_set, which replaced the following: 
+        // orig_data[offset] = '\0';
+        // inode_data_append(fs, inode, orig_data);  
     }
     // Otherwise, file size and contents are unchanged
 
@@ -820,7 +823,7 @@ int __myfs_open_implem(void *fsptr, size_t fssize, int *errnoptr,
     if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
 
     // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
-    if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;  // Fail
+    if ((!(inode = fs_pathresolve(fs, path, errnoptr)))) return -1;  // Fail
 
     return 0; // Success
 }
@@ -842,6 +845,8 @@ int __myfs_open_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
                        const char *path, char *buf, size_t size, off_t offset) {
+    if (!size) return 0;  // If no bytes to read
+
     FSHandle *fs;       // Handle to the file system
     Inode *inode;       // Inode for the given path
 
@@ -849,7 +854,7 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
     if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
 
     // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
-    if ((!(fs_pathresolve(fs, path, errnoptr)))) return -1;
+    if ((!(inode = fs_pathresolve(fs, path, errnoptr)))) return -1;
     
     // Read file data
     char* full_buf = malloc(1);
@@ -892,6 +897,8 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path, const char *buf, size_t size, off_t offset) {
+    if (!size) return 0;  // If no bytes to write
+
     FSHandle *fs;       // Handle to the file system
     Inode *inode;       // Inode for the given path
 
@@ -901,9 +908,49 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
     if ((!(inode = fs_pathresolve(fs, path, errnoptr)))) return -1;
 
-    /* STUB */
-    
-    return -1;
+    // If offset is 0, we replace all existing data with the given data
+    if (!offset) {
+        printf("WRITE: offset = 0\n");
+        char *dup = strndup(buf, size);
+        inode_data_remove(fs, inode);
+        inode_data_set(fs, inode, dup, size);
+        free(dup);
+    }
+
+    // Else, append to existing file data, starting at offset
+    else {   
+        printf("WRITE: offset != 0\n");
+        // Read file data
+        char *orig_buf = malloc(1);
+        char *new_data;
+        int num_orig_bytes, new_data_sz = 0;
+        size_t orig_sz = file_data_get(fs, path, orig_buf);  // TODO: Replace file_data_get() w/inode_data_get()
+
+        // If offset is beyond end of data, zero-bytes to write
+        if (offset >= orig_sz) { 
+            free(orig_buf);
+            return 0;
+        }
+
+        // Set 1st half of new_data from existing file data, starting at offset
+        num_orig_bytes = orig_sz - offset;
+        new_data = strndup(orig_buf + offset, num_orig_bytes);
+
+        // Set 2nd half of new_data, from the buf param
+        new_data_sz = num_orig_bytes + size;
+        new_data = realloc(new_data, num_orig_bytes);
+        strncpy(new_data + num_orig_bytes, buf, size);
+
+        // Replace the files data with the existing and new data
+        inode_data_remove(fs, inode);
+        inode_data_set(fs, inode, new_data, new_data_sz);
+
+        // Cleanup
+        free(new_data);
+        free(orig_buf);
+    }
+
+    return size;  // num bytes written
 }
 
 /* Implements an emulation of the utimensat system call on the filesystem 
