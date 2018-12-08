@@ -157,59 +157,57 @@ int main()
     int errnoptr;
     int result;
 
-    //// __myfs_getattr_implem
-    // printf("\n__myfs_getattr_implem():\n");
-    // result = __myfs_getattr_implem(fsptr, fssize, &errnoptr, 0, 0, filepath, stbuf);
-    // free(stbuf);
-    // print_result_debug(result);
+    // __myfs_getattr_implem
+    printf("\n__myfs_getattr_implem():\n");
+    result = __myfs_getattr_implem(fsptr, fssize, &errnoptr, 0, 0, filepath, stbuf);
+    free(stbuf);
+    print_result_debug(result);
 
-    // //// TODO: __myfs_readdir_implem
+    //// TODO: __myfs_readdir_implem
 
-    // // __myfs_mknod_implem()
-    // printf("\n__myfs_mknod_implem():\n");
-    // result = __myfs_mknod_implem(fsptr, fssize, &errnoptr, "/dir1/test1");
-    // print_result_debug(result);
+    // __myfs_mknod_implem()
+    printf("\n__myfs_mknod_implem():\n");
+    result = __myfs_mknod_implem(fsptr, fssize, &errnoptr, "/dir1/test1");
+    print_result_debug(result);
 
 
-    // //// TODO: __myfs_unlink_implem
+    //// TODO: __myfs_unlink_implem
 
-    // //// TODO: __myfs_rmdir_implem
+    //// TODO: __myfs_rmdir_implem
 
-    // //// TODO: __myfs_mkdir_implem
+    //// TODO: __myfs_mkdir_implem
 
-    // //// TODO: __myfs_rename_implem
+    //// TODO: __myfs_rename_implem
 
-    // // __myfs_truncate_implem
-    // printf("\n__myfs_truncate_implem():\n");
-    // offset = 5;
-    // result = __myfs_truncate_implem(fsptr, fssize, &errnoptr, filepath, offset);
-    // print_result_debug(result);
+    // __myfs_truncate_implem
+    printf("\n__myfs_truncate_implem():\n");
+    offset = 5;
+    result = __myfs_truncate_implem(fsptr, fssize, &errnoptr, filepath, offset);
+    print_result_debug(result);
 
-    // //// TODO: __myfs_open_implem
+    //// TODO: __myfs_open_implem
 
-    // //// __myfs_read_implem
-    // printf("\n__myfs_read_implem():\n");
-    // size = 20;
-    // offset = 0;
-    // buf = malloc(size);
-    // result = __myfs_read_implem(fsptr, fssize, &errnoptr, filepath, buf, size, offset);
+    //// __myfs_read_implem
+    printf("\n__myfs_read_implem():\n");
+    size = 20;
+    offset = 0;
+    buf = malloc(size);
+    result = __myfs_read_implem(fsptr, fssize, &errnoptr, filepath, buf, size, offset);
 
-    // printf("(%d bytes read)\n", result); 
-    // write(fileno(stdout), buf, result);
-    // free(buf);
-    // printf("\n");
+    printf("(%d bytes read)\n", result); 
+    write(fileno(stdout), buf, result);
+    free(buf);
+    printf("\n");
 
     //// __myfs_write_implem
-    print_inode_debug(fs, resolve_path(fs, filepath));
     printf("\n__myfs_write_implem():\n");
-    size = 20;
-    char data[20] = "Hello from test file";  // len = 20
-    offset = 0;
+    char data[9] = "test file";
+    size = 9;
+    offset = 11;
     result = __myfs_write_implem(fsptr, fssize, &errnoptr, filepath, data, size, offset);
 
     printf("(%d bytes written)\n", result); 
     write(fileno(stdout), data, result);
-    // free(data);
     printf("\n");
 
     //// TODO: __myfs_utimens_implem

@@ -910,7 +910,6 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // If offset is 0, we replace all existing data with the given data
     if (!offset) {
-        printf("WRITE: offset = 0\n");
         char *dup = strndup(buf, size);
         inode_data_remove(fs, inode);
         inode_data_set(fs, inode, dup, size);
@@ -919,35 +918,33 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // Else, append to existing file data, starting at offset
     else {   
-        printf("WRITE: offset != 0\n");
-        // Read file data
-        char *orig_buf = malloc(1);
+        // Read file's existing data
         char *new_data;
-        int num_orig_bytes, new_data_sz = 0;
-        size_t orig_sz = file_data_get(fs, path, orig_buf);  // TODO: Replace file_data_get() w/inode_data_get()
+        int new_data_sz;
+        char *orig_data = malloc(1);
+        size_t orig_sz = file_data_get(fs, path, orig_data);  // TODO: Replace file_data_get() w/inode_data_get()
 
         // If offset is beyond end of data, zero-bytes to write
         if (offset >= orig_sz) { 
-            free(orig_buf);
+            free(orig_data);
             return 0;
         }
 
-        // Set 1st half of new_data from existing file data, starting at offset
-        num_orig_bytes = orig_sz - offset;
-        new_data = strndup(orig_buf + offset, num_orig_bytes);
+        // Build 1st half of new_data from existing file data, starting at offset
+        new_data = strndup(orig_data, offset);
 
-        // Set 2nd half of new_data, from the buf param
-        new_data_sz = num_orig_bytes + size;
-        new_data = realloc(new_data, num_orig_bytes);
-        strncpy(new_data + num_orig_bytes, buf, size);
+        // Set 2nd half of new_data - size bytes from the buf param
+        new_data_sz = offset + size;
+        new_data = realloc(new_data, new_data_sz);
+        strncpy(new_data + offset, buf, size);
 
-        // Replace the files data with the existing and new data
+        // Replace the file's data with the new data
         inode_data_remove(fs, inode);
         inode_data_set(fs, inode, new_data, new_data_sz);
 
         // Cleanup
         free(new_data);
-        free(orig_buf);
+        free(orig_data);
     }
 
     return size;  // num bytes written
