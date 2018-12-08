@@ -131,7 +131,7 @@ static void inode_data_set(FSHandle *fs, Inode *inode, char *data, size_t sz) {
     // Use a single block if sz will fit in one
     if (sz <= DATAFIELD_SZ_B) {
         void *data_field = memblock + ST_SZ_MEMHEAD;
-        strncpy(data_field, data, sz);
+        memcpy(data_field, data, sz);
         *(int*)(&memblock->not_free) = 1;
         memblock->data_size_b = (size_t*) sz;
         memblock->offset_nextblk = 0;
@@ -162,7 +162,7 @@ static void inode_data_set(FSHandle *fs, Inode *inode, char *data, size_t sz) {
             char *ptr_writeto = memblock_datafield(fs, memblock);
 
             // Write the bytes to the data field
-            strncpy(ptr_writeto, data_idx, write_bytes);
+            memcpy(ptr_writeto, data_idx, write_bytes);
             *(int*)(&memblock->not_free) = 1;
             *(size_t*)(&memblock->data_size_b) = write_bytes;
 
@@ -244,7 +244,7 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
     size_t offset;
     size_t offset_sz = offsetend_ptr - offset_ptr;
     char *offset_str = malloc(offset_sz);
-    strncpy(offset_str, offset_ptr + 1, offset_sz - 1);  // +/- 1 to exclude sep
+    memcpy(offset_str, offset_ptr + 1, offset_sz - 1);  // +/- 1 to exclude sep
     sscanf(offset_str, "%zu", &offset); // Convert offset from str to size_t
 
     Inode *subdir_inode = (Inode*)ptr_from_offset(fs, (size_t*)offset);
@@ -354,67 +354,70 @@ static int dir_remove(FSHandle *fs, const char *path) {
     parent = resolve_path(fs, par_path);
     dir = resolve_path(fs, dirname);
 
-    // Cleanup
-    free(par_path);
-    free(start);
-
-    // Ensure valid parent/dir
-    if (!parent || !dir)
-        return 0;
-    
+    // Ensure valid parent/dir before continuing
+    if (parent && !dir) {
     // Denote dir's offset, in str form
-    char offset_str[1000];      // TODO: sz should be based on fs->num_inodes
-    size_t dir_offset = offset_from_ptr(fs, dir);
-    snprintf(offset_str, sizeof(offset_str), "%lu", dir_offset);
+        char offset_str[1000];   // TODO: sz should be based on fs->num_inodes
+        size_t dir_offset = offset_from_ptr(fs, dir);
+        snprintf(offset_str, sizeof(offset_str), "%lu", dir_offset);
 
-    // Remove dir's lookup line (ex: "dirname:offset\n") from parent
-    char *dir_name = strdup(dir->name);
-    size_t data_sz = 0;
-    data_sz = str_len(dir_name) + str_len(offset_str) + 2; // +2 for : and \n
-    char *rmline = malloc(data_sz);
+        // Remove dir's lookup line (ex: "dirname:offset\n") from parent
+        char *dir_name = strdup(dir->name);
+        size_t data_sz = 0;
+        data_sz = str_len(dir_name) + str_len(offset_str) + 2; // +2 for : and \n
+        char *rmline = malloc(data_sz);
 
-    strcpy(rmline, dir_name);
-    strcat(rmline, FS_DIRDATA_SEP);
-    strcat(rmline, offset_str);
-    strcat(rmline, FS_DIRDATA_END);
+        strcpy(rmline, dir_name);
+        strcat(rmline, FS_DIRDATA_SEP);
+        strcat(rmline, offset_str);
+        strcat(rmline, FS_DIRDATA_END);
 
-    // Read file data
-    char* par_data = malloc(1);
-    size_t par_data_sz = inode_data_get(fs, parent, par_data);
+        // Read file data
+        char* par_data = malloc(1);
+        size_t par_data_sz = inode_data_get(fs, parent, par_data);
 
-    // Denote the start/end of the dir's lookup line
-    int line_sz = str_len(rmline);
-    char *line_start = strstr(par_data, rmline);
-    char *offsetend_ptr = line_start + line_sz;
+        // Denote the start/end of the dir's lookup line
+        size_t line_sz = str_len(rmline);
+        char *line_start = strstr(par_data, rmline);
+        char *offsetend_ptr = line_start + line_sz;
 
-    // Build new parent data without the dir's lookup line
-    char *new_data = malloc(par_data_sz - line_sz);
-    size_t sz1 =  line_start - par_data;
-    size_t sz2 = par_data_sz - sz1 - line_sz;
-    strncpy(new_data, par_data, sz1);
-    strncpy(new_data + sz1, offsetend_ptr, sz2);
+        // Build new parent data without the dir's lookup line
+        char *freeme, *new_data = malloc(par_data_sz - line_sz);
+        size_t sz1 =  line_start - par_data;
+        size_t sz2 = par_data_sz - sz1 - line_sz;
+        memcpy(new_data, par_data, sz1);
+        memcpy(new_data + sz1, offsetend_ptr, sz2);
 
-    par_data = malloc(1);
-    par_data_sz = inode_data_get(fs, parent, par_data);
+        // Get parent data (the offset lookup lines)
+        par_data = malloc(1);
+        par_data_sz = inode_data_get(fs, parent, par_data);
+        
+        // debug
+        // printf("Removing dir -\npath: %s\ndirname: %s\n", path, dirname);
+        // printf("Parent data (len=%lu): %s \n", par_data_sz, par_data);
+        // printf("Remove line (len=%lu): %s", line_sz, rmline);
+        // printf("sz1 = %lu, sz2 = %lu\n\n", sz1, sz2);
+
+        // Update the parent to reflect removal of dir
+        inode_data_set(fs, parent, new_data, sz1 + sz2);
+        *(int*)(&parent->subdirs) = *(int*)(&parent->subdirs) - 1;
+
+        // Format the dir's inode
+        inode_data_remove(fs, dir); 
+        *(int*)(&dir->is_dir) = 0;
+        *(int*)(&dir->subdirs) = 0;
+
+        free(par_path);
+        free(start);
+        free(freeme);
+        free(rmline);
+        free(dir_name);
     
-    // debug
-    // printf("Removing dir -\npar_path: %s\ndirname: %s\n", par_path, dirname);
-    // printf("Parent data: %s (len=%lu)\n", par_data, par_data_sz);
-    // printf("Remove line: %s (len=%lu)\n", rmline, str_len(rmline));
-    // printf("sz1 = %lu, sz2 = %lu\n", sz1, sz2);
+        return 1; // Success
 
-    // Update the parent to reflect removal of dir
-    inode_data_set(fs, parent, new_data, sz1 + sz2);
-    *(int*)(&parent->subdirs) = *(int*)(&parent->subdirs) - 1;
-
-    // Format the dir's inode
-    inode_data_remove(fs, dir); 
-    *(int*)(&dir->is_dir) = 0;
-    *(int*)(&dir->subdirs) = 0;
-
-    free(new_data);
-    free(rmline);
-    free(dir_name);
+    } else {
+        return 0; // Fail (bad path)
+    }
 }
 
 
@@ -921,12 +924,7 @@ int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Else, if request makes file smaller
     else if (offset < data_size) {
         // printf("Shrinking (offset=%lu, data_sz=%lu)...\n", offset, data_size);  // debug
-        inode_data_remove(fs, inode);
-        inode_data_set(fs, inode, orig_data, data_size);
-
-        // TODO: Test data_set, which replaced the following: 
-        // orig_data[offset] = '\0';
-        // inode_data_append(fs, inode, orig_data);  
+        inode_data_set(fs, inode, orig_data, offset);
     }
     // Otherwise, file size and contents are unchanged
 
@@ -1082,7 +1080,7 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
         // Set 2nd half of new_data - size bytes from the buf param
         new_data_sz = offset + size;
         new_data = realloc(new_data, new_data_sz);
-        strncpy(new_data + offset, buf, size);
+        memcpy(new_data + offset, buf, size);
 
         // Replace the file's data with the new data
         inode_data_remove(fs, inode);
