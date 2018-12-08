@@ -8,10 +8,9 @@
 
   University of Alaska Anchorage, College of Engineering.
 
-  Authors:      Dustin Fast
+  Contributors: Dustin Fast
                 Christoph Lauter
-
-  Contributors: Joel Keller
+                Joel Keller
                 Brooks Woods
 
   and based on 
@@ -842,18 +841,16 @@ int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // Create the fdir
     // printf("Creating dir -\npar_path: %s\nname: %s\n", par_path, name); // Debug
-    Inode *parent = resolve_path(fs, par_path);
+    Inode *parent = fs_pathresolve(fs, par_path, errnoptr);
     Inode *newdir = dir_new(fs, parent, name);
     
     // Cleanup
     free(par_path);
     free(start);
 
-    if (!newdir) {
-        *errnoptr = EINVAL;
-        return -1;  // Fail - bad name, or already exists
-    }
-    return 0;  // Success
+    if (!newdir)
+        return -1;  // Fail - bad path, or already exists
+    return 0;       // Success
     
 }
 
@@ -866,23 +863,114 @@ int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 
    On failure, -1 is returned and *errnoptr is set appropriately.
 
-   Caution: the function does more than what is hinted to by its name.
-   In cases the from and to paths differ, the file is moved out of 
-   the from path and added to the to path.
+    Behavior (from man 2 readme):
+    If  newpath  already  exists,  it  will   be   atomically
+    replaced,  so  that  there  is  no point at which another
+    process attempting to access newpath will find  it  miss‐
+    ing.   However,  there will probably be a window in which
+    both oldpath and newpath refer to the file being renamed.
+
+    If oldpath and newpath are existing hard links  referring
+    to the same file, then rename() does nothing, and returns
+    a success status.
+
+    If newpath exists but the operation fails for  some  rea‐
+    son,  rename() guarantees to leave an instance of newpath
+    in place.
+
+    oldpath can specify a directory.  In this  case,  newpath
+    must either not exist, or it must specify an empty direc‐
+    tory.
+
+    If oldpath  refers  to  a  symbolic  link,  the  link  is
+    renamed;  if  newpath refers to a symbolic link, the link
+    will be overwritten.
 
    The error codes are documented in man 2 rename.
 
 */
 int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
                          const char *from, const char *to) {
+    if (strcmp(from, to) == 0) return 0;  // No work required
+    
+    printf("\nF: %s\n", from);
+    printf("T: %s\n", to);
+    
     FSHandle *fs;           // Handle to the file system
 
     // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
     if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
 
-    /* STUB */
+    // Get the indexes of the file/dir seperators and path sizes
+    size_t from_len, to_len;
+    size_t from_idx = path_name_offset(from, &from_len);
+    size_t to_idx = path_name_offset(to, &to_len);
+
+    char *from_path = strndup(from, from_idx - 1);
+    char *to_path = strndup(to, to_idx);
+
+    Inode *from_parent = fs_pathresolve(fs, from_path, errnoptr);
+    Inode *to_parent = fs_pathresolve(fs, to_path, errnoptr);
+
+    free(from_path);
+    free(to_path);
+
+    char *from_name = strndup(from + from_idx, from_len - from_idx);
+    char *to_name = strndup(to + to_idx, to_len - to_idx);
+
+    Inode *from_child = fs_pathresolve(fs, from_name, errnoptr);
+    Inode *to_child = fs_pathresolve(fs, to_name, errnoptr);
+
+    free(from_child);
+    free(to_child);
+
+    // Ensure all the boys are in the band
+    if (!from_parent || !from_child || !to_parent) {
+        *errnoptr = EINVAL;
+        return -1;
+    }
+
+    // If 'from' is a directory, 'to' must must not exist or be an empty dir
+    if(from_child->is_dir) {
+        // If the destination doesn't exist, create it and move the data
+        if(!to_child) {
+            
+        } 
+        
+        // If dest does exist and is empty, overwrite it with 'to'
+        else if (!to_child->file_size_b) {
+             
+        } 
+        
+        // Else, error
+        else {
+            *errnoptr = EINVAL;
+            return -1;
+        }
+    }
+
+    // Else, 'from' is a regular file
+    else {
+        // If the destination exists, atomically overwrite it
+        if(to_child) {
+
+        }
+
+        // Else, create it and movethe data
+        else {
+
+        }
+
+    }
+
+
+    printf("\n\nFrom: %s (idx=%lu)\n", from_name, from_len);
+    printf("To: %s (idx=%lu)\n", to_name, from_idx);
+
+    // if (strncmp(path, FS_PATH_SEP, 1) != 0) {
+    // }
     
-    return -1;
+    return 0;
 }
 
 /* Implements an emulation of the truncate system call on the filesystem 

@@ -322,26 +322,24 @@ size_t str_len(char *arr) {
     return length;
 }
 
-// Seperates the given path (fullpath) into parent path (path) and child name.
-// Example: '/dira/dirb/file1' -> path = '/dira/dirb', name='file1'
-// TODO: Test and use to refactor
-static void path_seperate(const char *fullpath, char *path, char *name) {
-    char *start, *token, *next;
-    start = next = strdup(fullpath);  // Duplicate path so we can manipulate it
-    next++;                           // Skip initial seperator
+// Returns an index to the name element of the given path. Additionaly, pathlen
+// is set to the size in bytes of the path.
+// Example: path ='/dira/dirb/file1' returns 11
+static size_t path_name_offset(const char *path, size_t *pathlen) {
+    char *start, *token, *next, *name;
 
-    path = malloc(1);
-    *path = '\0';
-    while ((token = strsep(&next, FS_PATH_SEP))) {
-        if (!next) {
-            name = realloc(name, str_len(token));
+    start = next = strdup(path);  // Duplicate path so we can manipulate it
+    *pathlen = str_len(next);
+    next++;                       // Skip initial seperator
+
+    while ((token = strsep(&next, FS_PATH_SEP)))
+        if (!next) 
             name = token;
-        } else {
-            path = realloc(path, str_len(path) + str_len(token) + 1);
-            strcat(path, FS_PATH_SEP);
-            strcat(path, token);
-        }
-    }
+
+    size_t ret = name - start; 
+    free(start);
+
+    return ret;
 }
 
 

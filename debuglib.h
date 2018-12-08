@@ -273,13 +273,19 @@ int main()
 
     
     // truncate
-    printf("\n\ntruncate_implem('hello''):\n");
+    printf("\n\ntruncate_implem('hello'):\n");
     result = __myfs_truncate_implem(fsptr, fssize, &e, filepath, 5);
     buf = malloc(1);
     sz = file_data_get(fs, filepath, buf);
     write(fileno(stdout), buf, sz);
     free(buf);
-    
+
+
+    // rename
+    char rename1[] = "\nrename_implem(FAIL/NOEXIST):\n";
+    result = __myfs_rename_implem(fsptr, fssize, &e, filepath, "/file2");
+    print_result_debug(rename1, result, 0);
+
 
     //// TODO: __myfs_readdir_implem
 
