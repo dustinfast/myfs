@@ -167,9 +167,8 @@ int main()
 
     // __myfs_mknod_implem()
     printf("\n__myfs_mknod_implem():\n");
-    result = __myfs_mknod_implem(fsptr, fssize, &errnoptr, "/dir1/test1");
+    result = __myfs_mknod_implem(fsptr, fssize, &errnoptr, filepath);
     print_result_debug(result);
-
 
     //// TODO: __myfs_unlink_implem
 
@@ -185,7 +184,10 @@ int main()
     result = __myfs_truncate_implem(fsptr, fssize, &errnoptr, filepath, offset);
     print_result_debug(result);
 
-    //// TODO: __myfs_open_implem
+    //// __myfs_open_implem
+    printf("\n__myfs_open_implem():\n");
+    result = __myfs_open_implem(fsptr, fssize, &errnoptr, "/file5");
+    print_result_debug(result);
 
     //// __myfs_read_implem
     printf("\n__myfs_read_implem():\n");
