@@ -150,6 +150,11 @@ int main()
 
     char *filepath = path_file2;  // Test file path
     char *dirpath = path_dir1;    // Test directory path
+    char nofilepath[] = "/filethatdoesntexist";
+    char badpath1[] = "badpath";
+    char badpath2[] = "/fil:e";
+    char newfilepath[] = "/newfile1";
+    char newdirpath[] = "/newdir1";
 
     char *buf;
     struct stat *stbuf = malloc(sizeof(struct stat));
@@ -157,16 +162,27 @@ int main()
     int errnoptr;
     int result;
 
-    // __myfs_getattr_implem
-    printf("\n__myfs_getattr_implem():\n");
+    // __myfs_getattr_implem, for existing file
+    printf("\n__myfs_getattr_implem(SUCCESS):\n");
     result = __myfs_getattr_implem(fsptr, fssize, &errnoptr, 0, 0, filepath, stbuf);
+    free(stbuf);
+    print_result_debug(result);
+
+    // __myfs_getattr_implem, for non-existent file
+    printf("\n__myfs_getattr_implem(FAIL):\n");
+    result = __myfs_getattr_implem(fsptr, fssize, &errnoptr, 0, 0, nofilepath, stbuf);
     free(stbuf);
     print_result_debug(result);
 
     //// TODO: __myfs_readdir_implem
 
-    // __myfs_mknod_implem()
-    printf("\n__myfs_mknod_implem():\n");
+    // __myfs_mknod_implem, for non-existent file
+    printf("\n__myfs_mknod_implem(SUCCESS):\n");
+    result = __myfs_mknod_implem(fsptr, fssize, &errnoptr, newfilepath);
+    print_result_debug(result);
+
+    // __myfs_mknod_implem, where file already exists
+    printf("\n__myfs_mknod_implem(FAIL):\n");
     result = __myfs_mknod_implem(fsptr, fssize, &errnoptr, filepath);
     print_result_debug(result);
 
@@ -174,23 +190,32 @@ int main()
 
     //// TODO: __myfs_rmdir_implem
 
-    //// TODO: __myfs_mkdir_implem
+    // __myfs_mkdir_implem, for non-existent dir
+    printf("\n__myfs_mkdir_implem(SUCCESS):\n");
+    result = __myfs_mkdir_implem(fsptr, fssize, &errnoptr, newdirpath);
+    print_result_debug(result);
+
+    // __myfs_mkdir_implem, where dir already exists
+    printf("\n__myfs_mkdir_implem(FAIL):\n");
+    result = __myfs_mkdir_implem(fsptr, fssize, &errnoptr, badpath1);
+    print_result_debug(result);
+    
 
     //// TODO: __myfs_rename_implem
 
     // __myfs_truncate_implem
-    printf("\n__myfs_truncate_implem():\n");
+    printf("\n__myfs_truncate_implem(SUCCESS):\n");
     offset = 5;
     result = __myfs_truncate_implem(fsptr, fssize, &errnoptr, filepath, offset);
     print_result_debug(result);
 
     //// __myfs_open_implem
-    printf("\n__myfs_open_implem():\n");
+    printf("\n__myfs_open_implem(SUCCESS):\n");
     result = __myfs_open_implem(fsptr, fssize, &errnoptr, "/file5");
     print_result_debug(result);
 
     //// __myfs_read_implem
-    printf("\n__myfs_read_implem():\n");
+    printf("\n__myfs_read_implem(SUCCESS):\n");
     size = 20;
     offset = 0;
     buf = malloc(size);
@@ -202,9 +227,9 @@ int main()
     printf("\n");
 
     //// __myfs_write_implem
-    printf("\n__myfs_write_implem():\n");
-    char data[9] = "test file";
-    size = 9;
+    printf("\n__myfs_write_implem(SUCCESS):\n");
+    char data[10] = "test write";
+    size = 10;
     offset = 11;
     result = __myfs_write_implem(fsptr, fssize, &errnoptr, filepath, data, size, offset);
 
@@ -217,7 +242,7 @@ int main()
     //// TODO: __myfs_statfs_implem
     
 
-    print_inode_debug(fs, resolve_path(fs, filepath));
+    // print_inode_debug(fs, resolve_path(fs, filepath));
 
     /////////////////////////////////////////////////////////////////////////
     // Cleanup

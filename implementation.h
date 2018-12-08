@@ -322,6 +322,28 @@ size_t str_len(char *arr) {
     return length;
 }
 
+// Seperates the given path (fullpath) into parent path (path) and child name.
+// Example: '/dira/dirb/file1' -> path = '/dira/dirb', name='file1'
+// TODO: Test and use to refactor
+static void path_seperate(const char *fullpath, char *path, char *name) {
+    char *start, *token, *next;
+    start = next = strdup(fullpath);  // Duplicate path so we can manipulate it
+    next++;                           // Skip initial seperator
+
+    path = malloc(1);
+    *path = '\0';
+    while ((token = strsep(&next, FS_PATH_SEP))) {
+        if (!next) {
+            name = realloc(name, str_len(token));
+            name = token;
+        } else {
+            path = realloc(path, str_len(path) + str_len(token) + 1);
+            strcat(path, FS_PATH_SEP);
+            strcat(path, token);
+        }
+    }
+}
+
 
 /* End String Helpers ---------------------------------------------------- */
 /* Begin filesystem helpers ---------------------------------------------- */

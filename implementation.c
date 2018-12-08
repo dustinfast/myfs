@@ -69,7 +69,7 @@ static FSHandle *fs_handle(void *fsptr, size_t fssize, int *errnoptr) {
     return fs;
 }
 
-// A debug function to simulate a pathresolve() call. 
+// A debug function to simulate a resolve_path() call. 
 // Returns some hardcoded test inode (ex: the root dir).
 // On fail, sets errnoptr to ENOENT and returns NULL.
 static Inode *fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr) {
@@ -580,6 +580,12 @@ int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
     if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
 
+    // Check for root dir symbol in path (assumes path is absolute)
+    if (strncmp(path, FS_PATH_SEP, 1) != 0) {
+        *errnoptr = EINVAL;
+        return -1;
+    }
+
     // Split the given path into seperate path and filename elements
     char *abspath, *fname;
     char *start, *token, *next;
@@ -601,7 +607,7 @@ int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
     }
 
     if (*abspath == '\0')
-        strcat(abspath, FS_PATH_SEP);
+        strcat(abspath, FS_PATH_SEP);  // TODO: Test strncpy here instead
 
     // Create the file
     // printf("Creating File -\nabspath: %s\nfname: %s\n", abspath, fname); // Debug
@@ -695,14 +701,51 @@ int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     Inode *inode;       // Inode for the given path
 
     // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
-    if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
+    if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1;
 
-    // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
-    if ((!(inode = fs_pathresolve(fs, path, errnoptr)))) return -1;
+    // Check for root dir symbol in path (assumes path is absolute)
+    if (strncmp(path, FS_PATH_SEP, 1) != 0) {
+        *errnoptr = EINVAL;
+        return -1;
+    }
 
-    /* STUB */
+    // Split the given path into seperate path and filename elements
+    char *par_path, *name;
+    char *start, *token, *next;
     
-    return -1;
+    start = next = strdup(path);    // Duplicate path so we can manipulate it
+    next++;                         // Skip initial seperator
+
+    par_path = malloc(1);           // Parent path buffer
+    *par_path = '\0';
+    while ((token = strsep(&next, FS_PATH_SEP))) {
+        if (!next) {
+            name = token;
+        } else {
+            par_path = realloc(par_path, str_len(par_path) + str_len(token) + 1);
+            strcat(par_path, FS_PATH_SEP);
+            strcat(par_path, token);
+        }
+    }
+
+    if (*par_path == '\0')
+        strcat(par_path, FS_PATH_SEP);  // TODO: Test strncpy here instead
+
+    // Create the fdir
+    // printf("Creating dir -\npar_path: %s\nname: %s\n", par_path, name); // Debug
+    Inode *parent = resolve_path(fs, par_path);
+    Inode *newdir = dir_new(fs, parent, name);
+    
+    // Cleanup
+    free(par_path);
+    free(start);
+
+    if (!newdir) {
+        *errnoptr = EINVAL;
+        return -1;  // Fail - bad name, or already exists
+    }
+    return 0;  // Success
+    
 }
 
 /* Implements an emulation of the rename system call on the filesystem 
