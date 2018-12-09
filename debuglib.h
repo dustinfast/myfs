@@ -75,11 +75,12 @@ static void init_files_debug(FSHandle *fs) {
     printf("\n--- Initializing test files/folders ---");
 
     // Init test dirs/files
-    dir_new(fs, fs_rootnode_get(fs), "dir1");
+    Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
     file_new(fs, "/dir1", "file1", "hello from file 1", 17);
     file_new(fs, "/dir1", "file2", "hello from file 2", 17);
-    // file_new(fs, "/dir1", "file3", "hello from file 3", 17);
-    // file_new(fs, "/dir1", "file4", "hello from file 4", 17);
+    // dir_new(fs, dir1, "dir2");
+    // file_new(fs, "/dir1/dir2/file3", "file3", "hello from file 3", 17);
+    file_new(fs, "/dir1", "file4", "hello from file 4", 17);
     
     // Init file 5 consisting of a lg string of a's & b's & terminated w/ 'c'.
     size_t data_sz = DATAFIELD_SZ_B * 1.25;
@@ -233,12 +234,16 @@ int main()
     print_result_debug("open_implem(FAIL/NOEXIST):\n", r, -1);
 
     // readdir_implem
+    print_inode_debug(fs, resolve_path(fs, dirpath));
+
     char ***namesptr = NULL;
+    r = __myfs_readdir_implem(fsptr, fssize, &e, dirpath, namesptr);
+    print_result_debug("readdir_implem('file1, file2'):\n", r, 3);
+    printf("%d\n", r);
+
     r = __myfs_readdir_implem(fsptr, fssize, &e, filepath, namesptr);
     print_result_debug("readdir_implem(FAIL/NOTDIR):\n", r, -1);
 
-    r = __myfs_readdir_implem(fsptr, fssize, &e, dirpath, namesptr);
-    print_result_debug("readdir_implem('file1, file2'):\n", r, 2);
 
 
     // read
@@ -269,14 +274,23 @@ int main()
     write(fileno(stdout), buf, sz);
     free(buf);
 
-    // rename
-    print_inode_debug(fs, resolve_path(fs, "/dir1/file1"));
+    // // rename (file)
+    // print_inode_debug(fs, resolve_path(fs, "/dir1/file1"));
 
-    char rename1[] = "\nrename_implem(FileToFile-SUCCESS):\n";
-    r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/file1", "/file1");
-    print_result_debug(rename1, r, 0);
+    // char rename1[] = "\nrename_implem(FileToFile-SUCCESS):\n";
+    // r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/file1", "/file1");
+    // print_result_debug(rename1, r, 0);
 
-    print_inode_debug(fs, resolve_path(fs, "/dir1"));
+    // print_inode_debug(fs, resolve_path(fs, "/dir1"));
+
+    // rename (dir)
+    // print_inode_debug(fs, resolve_path(fs, "/dir1/dir2"));
+
+    // char rename1[] = "\nrename_implem(FileToFile-SUCCESS):\n";
+    // r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/file1", "/file1");
+    // print_result_debug(rename1, r, 0);
+
+    // print_inode_debug(fs, resolve_path(fs, "/dir1"));
 
 
 

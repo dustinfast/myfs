@@ -10,7 +10,7 @@
 /* Begin Configurables  -------------------------------------------------- */
 
 
-#define FS_BLOCK_SZ_KB (1)                 // Total kbs of each memory block
+#define FS_BLOCK_SZ_KB (1)                 // TODO: Total kbs of each memory block
 #define NAME_MAXLEN (256)                  // Max length of any filename
 #define BLOCKS_TO_INODES (1)               // Num of mem blocks to each inode
 
@@ -166,6 +166,7 @@ static size_t memblocks_numfree(FSHandle *fs) {
 // Populates buf with a string representing the given memblock's data,
 // plus the data of any subsequent MemBlocks extending it.
 // Returns: The size of the data at buf.
+// NOTE: buf should be pre-sized with malloc(inode->file_size_b)
 size_t memblock_data_get(FSHandle *fs, MemHead *memhead, const char *buf) {
     MemHead *memblock = (MemHead*) memhead;
     size_t total_sz = 0;
