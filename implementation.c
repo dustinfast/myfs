@@ -421,7 +421,6 @@ static int dir_remove(FSHandle *fs, const char *path) {
 /* End Directory helpers ------------------------------------------------- */
 /* Begin File helpers ---------------------------------------------------- */
 
-
 // Creates a new file in the fs having the given properties.
 // Note: path is parent dir path, fname is the file name. Ex: '/' and 'file1'.
 // Returns: A ptr to the newly created file's I-node (or NULL on fail).
@@ -525,12 +524,10 @@ static Inode* resolve_path(FSHandle *fs, const char *path) {
 }
 
 /* End File helpers ------------------------------------------------------- */
-/* Begin Our 13 implementations ------------------------------------------- */
+/* Begin emulation functins ----------------------------------------------- */
 
 
-/* -- __myfs_getattr_implem() -- */
 /* Implements the "stat" system call on the filesystem 
-
    Accepts:
       fsptr       : ptr to the fs
       fssize      : size of fs pointed to by fsptr
@@ -663,7 +660,7 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
         memset(names + names_len - 1, '\0', 1);
         names_count++;
         
-        // printf("\nname: %s\n", name);        // Debug
+        printf("\nname: %s\n", name);        // Debug
         // printf("nameslen: %lu\n", names_len);
         // printf("ptr     : %lu\n", names);
         // printf("set 1    : %lu\n", names_len - nlen);
@@ -1285,11 +1282,12 @@ int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
     return 0;
 }
 
-/* End Our 13 implementations  -------------------------------------------- */
+/* End emulation functions  ----------------------------------------------- */
 /* Begin DEBUG  ----------------------------------------------------------- */
 
 
 # include "debuglib.h"  // Includes main() and debug output functions
                         // For dev use only - Comment out for prod
+
 
 /* End DEBUG  ------------------------------------------------------------- */

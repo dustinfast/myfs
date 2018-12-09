@@ -51,7 +51,8 @@ static void print_inode_debug(FSHandle *fs, Inode *inode) {
     printf("      not_free       : %lu\n", (lui)memhead->not_free);
     printf("      data_size_b    : %lu\n", (lui)memhead->data_size_b);
     printf("      offset_nextblk : %lu\n", (lui)memhead->offset_nextblk);
-    printf("      data           : %s\n",  (char*)(memhead + ST_SZ_MEMHEAD));
+    printf("      data           :\n");
+    printf("'%s'\n",  (char*)(memhead + ST_SZ_MEMHEAD));
 }
 
 // Prints either a PASS or FAIL to the console based on the given params
@@ -80,7 +81,7 @@ static void init_files_debug(FSHandle *fs) {
     file_new(fs, "/dir1", "file2", "hello from file 2", 17);
     // dir_new(fs, dir1, "dir2");
     // file_new(fs, "/dir1/dir2/file3", "file3", "hello from file 3", 17);
-    file_new(fs, "/dir1", "file4", "hello from file 4", 17);
+    // file_new(fs, "/dir1", "file4", "hello from file 4", 17);
     
     // Init file 5 consisting of a lg string of a's & b's & terminated w/ 'c'.
     size_t data_sz = DATAFIELD_SZ_B * 1.25;
@@ -121,26 +122,17 @@ int main()
     ////////////////////////////////////////////////////////////////////////
     // Display test file/directory attributes
 
-    char path_root[] =  "/";
-    char path_dir1[] =  "/dir1";
-    char path_file1[] =  "/dir1/file1";
-    char path_file2[] =  "/dir1/file2";
-
     // Root dir
     printf("\nExamining / ");
-    print_inode_debug(fs, resolve_path(fs, path_root));
+    print_inode_debug(fs, resolve_path(fs, "/"));
     
     // Dir 1
     printf("\nExamining /dir1 ");
-    print_inode_debug(fs, resolve_path(fs, path_dir1));
+    print_inode_debug(fs, resolve_path(fs, "/dir1"));
 
     // File 1
     printf("\nExamining /dir1/file1 ");
-    print_inode_debug(fs, resolve_path(fs, path_file1));
-
-    // File 5 (commented out because multi-memblock data hogs screen)
-    // printf("\nExamining /file5 ");
-    // print_inode_debug(fs, resolve_path(fs, path_file5));
+    print_inode_debug(fs, resolve_path(fs, "/dir1/file1"));
 
     printf("\n");
 
@@ -149,8 +141,8 @@ int main()
     printf("\n--- Testing __myfs_implem functions ---\n");
 
     // Test paths
-    char *filepath = path_file2;
-    char *dirpath = path_dir1;
+    char *filepath = "/dir1/file1";
+    char *dirpath = "/dir1";
     char nofilepath[] = "/filethatdoesntexist";
     char badpath[] = "badpath";
     char newfilepath[] = "/newfile1";
