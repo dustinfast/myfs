@@ -937,9 +937,6 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
                          const char *from, const char *to) {
     if (strcmp(from, to) == 0) return 0;  // No work required
     
-    printf("\nF: %s\n", from);
-    printf("T: %s\n", to);
-    
     FSHandle *fs;           // Handle to the file system
 
     // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
@@ -953,18 +950,22 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
     char *from_path = strndup(from, (from_idx > 1 ) ? from_idx-1 : from_idx);
     char *to_path = strndup(to, to_idx);
     char *to_name = strndup(to + to_idx, to_len - to_idx);
-    
-    printf("\n\nFrom: %s (idx=%lu)\n", from_path, from_len);
-    printf("To: %s (idx=%lu)\n", to_path, from_idx);
 
+    // Debug
+    printf("\nRenaming: %s\n", from);
+    printf("To: %s\n", to);
+    printf("From parent path: %s (%lu)\n", from_path, from_len);
+    printf("To parent path: %s (%lu)\n", to_path, from_idx);
+    printf("From name: %s (%lu)\n", from_path, from_len);
+    printf("To name: %s\n", to_name);
+    
     Inode *from_parent = fs_pathresolve(fs, from_path, errnoptr);
     Inode *to_parent = fs_pathresolve(fs, to_path, errnoptr);
     free(from_path);
 
     Inode *from_child = fs_pathresolve(fs, from, errnoptr);
     Inode *to_child = fs_pathresolve(fs, to, errnoptr);
-
-
+    
 
     // Ensure all the boys are in the band
     if (!from_parent || !from_child || !to_parent) {

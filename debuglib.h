@@ -270,10 +270,14 @@ int main()
     free(buf);
 
     // rename
-    // TODO: Not working
-    // char rename1[] = "\nrename_implem(SUCCESS):\n";
-    // r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/file1", "/file1");
-    // print_result_debug(rename1, r, 0);
+    print_inode_debug(fs, resolve_path(fs, "/dir1/file1"));
+
+    char rename1[] = "\nrename_implem(FileToFile-SUCCESS):\n";
+    r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/file1", "/file1");
+    print_result_debug(rename1, r, 0);
+
+    print_inode_debug(fs, resolve_path(fs, "/dir1"));
+
 
 
     // print_inode_debug(fs, fs_rootnode_get(fs));
