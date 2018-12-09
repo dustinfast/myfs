@@ -31,7 +31,10 @@ static void print_fs_debug(FSHandle *fs) {
 
 // Print inode stats
 static void print_inode_debug(FSHandle *fs, Inode *inode) {
-    if (inode == NULL) printf("    FAIL: inode is NULL.\n");
+    if (inode == NULL) {
+        printf("    FAIL: inode is NULL.\n");
+        return;
+    }
 
     printf("Inode -\n");
     printf("   addr                : %lu\n", (lui)inode);
@@ -82,7 +85,7 @@ static void init_files_debug(FSHandle *fs) {
     
     // Init dir 2 test files
     Inode *dir2 = dir_new(fs, dir1, "dir2");
-    file_new(fs, "", "file3", "hello from file 3", 17);
+    file_new(fs, "/dir2", "file3", "hello from file 3", 17);
     
     // Init /file 5 consisting of a lg string of a's & b's & terminated w/ 'c'.
     size_t data_sz = DATAFIELD_SZ_B * 1.25;
@@ -227,16 +230,12 @@ int main()
     print_result_debug("open_implem(FAIL/NOEXIST):\n", r, -1);
 
     // readdir_implem
-    print_inode_debug(fs, resolve_path(fs, dirpath));
-
     char ***namesptr = NULL;
     r = __myfs_readdir_implem(fsptr, fssize, &e, dirpath, namesptr);
     print_result_debug("readdir_implem('file1, file2'):\n", r, 3);
-    printf("%d\n", r);
 
     r = __myfs_readdir_implem(fsptr, fssize, &e, filepath, namesptr);
     print_result_debug("readdir_implem(FAIL/NOTDIR):\n", r, -1);
-
 
 
     // read
@@ -278,19 +277,14 @@ int main()
     // print_inode_debug(fs, resolve_path(fs, "/dir1"));
 
     // rename (dir)
-    // print_inode_debug(fs, resolve_path(fs, "/dir1/dir2"));
+    print_inode_debug(fs, resolve_path(fs, "/dir1/dir2"));
 
-    // char rename1[] = "\nrename_implem(FileToFile-SUCCESS):\n";
-    // r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/file1", "/file1");
+    char rename1[] = "\nrename_implem(DirToDir-SUCCESS):\n";
+    r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/dir2", "/dir2");
     // print_result_debug(rename1, r, 0);
 
-    // print_inode_debug(fs, resolve_path(fs, "/dir1"));
+    print_inode_debug(fs, resolve_path(fs, "/dir2"));
 
-
-
-    // print_inode_debug(fs, fs_rootnode_get(fs));
-
-    // print_inode_debug(fs, resolve_path(fs, "/"));
 
     /////////////////////////////////////////////////////////////////////////
     // Cleanup

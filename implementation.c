@@ -669,7 +669,6 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
         // write(fileno(stdout), names, names_len); printf("\n");
     }
 
-
     if (names_count)
         namesptr = names;
 
@@ -949,7 +948,7 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
         return -1;
     }
 
-    // Begin the move...
+    // Begin the move... (Note: This could be done more efficiently) 
     char *data = malloc(*(int*)(&from_child->file_size_b));
     size_t sz; 
 
@@ -957,23 +956,26 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
     if(from_child->is_dir) {
         // If the destination doesn't exist, create it and move the data
         if(!to_child) {
+            printf("!to_child\n");
             Inode *dest = dir_new(fs, to_parent, to_name);  // Create dest
             sz = inode_data_get(fs, from_child, data);      // Get old data
             inode_data_set(fs, dest, data, sz);             // Copy to dest
-            dir_remove(fs, from);                           // Remove old dir
+            // dir_remove(fs, from);                           // Remove old dir
         } 
         
         // If dest does exist and is empty, overwrite it with 'to'
         else if (to_child->is_dir && !to_child->file_size_b) {
-            dir_remove(fs, to);                             // Remove dest            
-            Inode *dest = dir_new(fs, to_parent, to_name);  // Recreate dest
+            printf("child is dir && empty\n");
+            // dir_remove(fs, to);                          // Remove dest            
+            // Inode *dest = dir_new(fs, to_parent, to_name);  // Recreate dest
             sz = inode_data_get(fs, from_child, data);      // Get old data
-            inode_data_set(fs, dest, data, sz);             // Copy to dest
-            dir_remove(fs, from);                           // Remove old dir
+            inode_data_set(fs, to_child, data, sz);         // Copy to dest
+            // dir_remove(fs, from);                        // Remove old dir
         }
         
         // Else, error
         else {
+            printf("child is dir && NOT empty\n");
             *errnoptr = EINVAL;
             free(to_name);
             free(to_path);
@@ -983,9 +985,11 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // Else, 'from' is a regular file
     else {
+        printf("reg file\n");
+
         sz = inode_data_get(fs, from_child, data);   // Get old data
         
-        // If the destination exists, atomically overwrite it
+        // If the destination exists, overwrite it in an atomic way
         if(to_child)
             inode_data_set(fs, to_child, data, sz); // TODO: atomically
 
@@ -1000,7 +1004,7 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
     free(to_name);
     free(to_path);
 
-    return 0;
+    return -1;
 }
 
 /* Implements an emulation of the truncate system call on the filesystem 
