@@ -215,7 +215,7 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
 
 // Returns the inode for the given item (a sub-directory or file) having the
 // parent directory given by inode (Or NULL if item could not be found).
-static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
+static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *name) {
     if (!inode) return NULL;  // Ensure valid inode ptr
 
     // Get parent dir's data
@@ -223,7 +223,7 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
     inode_data_get(fs, inode, curr_data);
 
     // Get ptr to the items line in the parent dir's file/dir data.
-    char *subdir_ptr = strstr(curr_data, itemlabel);
+    char *subdir_ptr = strstr(curr_data, name);
 
     // If subdir does not exist, return NULL
     if(subdir_ptr == NULL) {
@@ -237,17 +237,17 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
 
     if (!offset_ptr || !offsetend_ptr) {
         printf("ERROR: Parse fail - Dir data may be corrupt -\n");
-        printf("parent = %s child = %s\n", inode->name, itemlabel);
+        printf("parent = %s child = %s\n", inode->name, name);
         free(curr_data);
         return NULL;
     }
 
+    // Get the subitem's offset
     size_t offset;
     size_t offset_sz = offsetend_ptr - offset_ptr;
     char *offset_str = malloc(offset_sz);
     memcpy(offset_str, offset_ptr + 1, offset_sz - 1);  // +/- 1 to exclude sep
-    sscanf(offset_str, "%zu", &offset); // Convert offset from str to size_t
-
+    sscanf(offset_str, "%zu", &offset);                 // str to size_t
     Inode *subdir_inode = (Inode*)ptr_from_offset(fs, (size_t*)offset);
 
     // debug
@@ -257,6 +257,9 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *itemlabel) {
     // Cleanup
     free(curr_data);
     free(offset_str);
+    
+    if (strcmp(subdir_inode->name, name) != 0)
+        return NULL; // Path not found
 
     return subdir_inode;
 }
@@ -437,7 +440,7 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     }
     
     if(dir_subitem_get(fs, parent, fname) != NULL) {
-        // printf("ERROR: File already exists\n");
+        printf("ERROR: File already exists\n");
         return NULL;
     }
 
@@ -459,7 +462,7 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     }
 
     if (!inode_name_set(inode, fname)) {
-        // printf("ERROR: Invalid file name\n");
+        printf("ERROR: Invalid file name\n");
         return NULL;
     }
     
@@ -940,9 +943,9 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Debug
     printf("\nRenaming: %s\n", from);
     printf("To: %s\n", to);
-    printf("From parent path: %s (%lu)\n", from_path, from_len);
-    printf("To parent path: %s (%lu)\n", to_path, from_idx);
-    printf("From name: %s (%lu)\n",from_name, from_len);
+    printf("From path: %s\n", from_path);
+    printf("To path: %s\n", to_path);
+    printf("From name: %s\n",from_name);
     printf("To name: %s\n", to_name);
 
     Inode *from_parent = fs_pathresolve(fs, from_path, errnoptr);
@@ -991,7 +994,9 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
         else {
             printf("child is dir && NOT empty\n");
             *errnoptr = EINVAL;
+            free(from_name);
             free(to_name);
+            free(from_path);
             free(to_path);
             return -1;
         }
@@ -1012,14 +1017,17 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
         // Else, create it
         else {
             printf("!exists\n");
+            printf("creating: %s%s\n", to_path, to_name);
             file_new(fs, to_path, to_name, data, sz);
         }
 
         // TODO: Remove old file
     }
 
-    free(data);    
+    free(data);
+    free(from_name);
     free(to_name);
+    free(from_path);
     free(to_path);
 
     return -1;

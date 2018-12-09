@@ -330,11 +330,10 @@ static size_t str_name_offset(const char *path, size_t *pathlen) {
     start = next = strdup(path);  // Duplicate path so we can manipulate it
     *pathlen = str_len(next);
     next++;                       // Skip initial seperator
-    printf("path: %s\n", path);
+    
     while ((token = strsep(&next, FS_PATH_SEP))) {
         if (!next) 
             name = token;
-        printf("token: %s\n", token); 
     }
 
     size_t ret = name - start; 
