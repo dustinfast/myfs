@@ -272,7 +272,7 @@ static MemHead* inode_firstmemblock(FSHandle *fs, Inode *inode) {
 
 // Returns 1 if the given inode is free, else returns 0.
 static int inode_isfree(Inode *inode) {
-    if (inode->offset_firstblk == 0)
+    if (inode->offset_firstblk == 0)  // TODO: Ensure this doesn't cause issues
         return 1;
     return 0;
 }

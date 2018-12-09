@@ -39,6 +39,7 @@ __Brooks Woods__: implementation.c
         Assume only absolute paths passed to 13 funcs?
         Filename and path chars to allow.
         Simple design vs. Better design.
+        Inodes to memblocks/memblocks size
 
 ## Assignment Instructions
 
