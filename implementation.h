@@ -227,9 +227,10 @@ static int inode_isdir(Inode *inode) {
 }
 
 // Returns 1 unless ch is one of the following illegal naming chars:
-// {, }, |, ~, DEL, :, /, and comma char
+// {, }, |, ~, DEL, :, /, \, and comma char
 static int inode_name_charvalid(char ch) {
-    return  (!(ch < 32 || ch == 44 || ch  == 47 || ch == 58 || ch > 122));
+    return  (!(ch < 32 || ch == 44 || 
+             ch == 95 || ch  == 47 || ch == 58 || ch > 122));
 }
 
 // Returns 1 iff name is legal ascii chars and within max length, else 0.
@@ -323,16 +324,18 @@ size_t str_len(char *arr) {
 // Returns an index to the name element of the given path. Additionaly, pathlen
 // is set to the size in bytes of the path.
 // Example: path ='/dira/dirb/file1' returns 11
-static size_t path_name_offset(const char *path, size_t *pathlen) {
+static size_t str_name_offset(const char *path, size_t *pathlen) {
     char *start, *token, *next, *name;
 
     start = next = strdup(path);  // Duplicate path so we can manipulate it
     *pathlen = str_len(next);
     next++;                       // Skip initial seperator
-
-    while ((token = strsep(&next, FS_PATH_SEP)))
+    printf("path: %s\n", path);
+    while ((token = strsep(&next, FS_PATH_SEP))) {
         if (!next) 
             name = token;
+        printf("token: %s\n", token); 
+    }
 
     size_t ret = name - start; 
     free(start);

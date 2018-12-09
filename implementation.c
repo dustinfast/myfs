@@ -339,6 +339,7 @@ static int dir_remove(FSHandle *fs, const char *path) {
     next++;                         // Skip initial seperator
 
     while ((token = strsep(&next, FS_PATH_SEP))) {
+        // TODO: Test if (!next || !inode_name_charvalid(*token)) {
         if (!next) {
             dirname = token;
         } else {
@@ -357,7 +358,9 @@ static int dir_remove(FSHandle *fs, const char *path) {
 
     // Ensure valid parent/dir before continuing
     if (parent && dir) {
-    // Denote dir's offset, in str form
+        printf("Dir Remove: %s / %s\n", parent->name, dir->name);
+        
+        // Denote dir's offset, in str form
         char offset_str[1000];   // TODO: sz should be based on fs->num_inodes
         size_t dir_offset = offset_from_ptr(fs, dir);
         snprintf(offset_str, sizeof(offset_str), "%lu", dir_offset);
@@ -390,10 +393,10 @@ static int dir_remove(FSHandle *fs, const char *path) {
         memcpy(new_data + sz1, offsetend_ptr, sz2);
         
         // debug
-        // printf("Removing dir -\npath: %s\ndirname: %s\n", path, dirname);
-        // printf("Parent data (len=%lu): %s \n", par_data_sz, par_data);
-        // printf("Remove line (len=%lu): %s", line_sz, rmline);
-        // printf("sz1 = %lu, sz2 = %lu\n\n", sz1, sz2);
+        printf("Removing dir -\npath: %s\ndirname: %s\n", path, dirname);
+        printf("Parent data (len=%lu): %s \n", par_data_sz, par_data);
+        printf("Remove line (len=%lu): %s", line_sz, rmline);
+        printf("sz1 = %lu, sz2 = %lu\n\n", sz1, sz2);
 
         // Update the parent to reflect removal of dir
         inode_data_set(fs, parent, new_data, sz1 + sz2);
@@ -493,9 +496,11 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
 
 
 // Resolves the given file or directory path and returns its associated inode.
-// Author: Joel Keller
+// Author: Joel Keller, Edited by: Dustin Fast
 static Inode* resolve_path(FSHandle *fs, const char *path) {
     Inode* root_dir = fs_rootnode_get(fs);
+
+    // printf("resolving: %s\n", path);  // debug
 
     // If path is root directory 
     if (strcmp(path, root_dir->name) == 0)
@@ -520,6 +525,12 @@ static Inode* resolve_path(FSHandle *fs, const char *path) {
         curr_path_part[path_ind] = '\0';
         curr_dir = dir_subitem_get(fs, curr_dir, curr_path_part);
     }
+
+    if (curr_dir && strcmp(curr_dir->name, curr_path_part) != 0)
+        return NULL; // Path not found
+
+    // printf("resolved: %s\n", curr_dir->name);  // debug
+    
     return curr_dir;
 }
 
@@ -855,10 +866,10 @@ int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     }
 
     if (*par_path == '\0')
-        strcat(par_path, FS_PATH_SEP);  // TODO: Test strncpy here instead
+        strcat(par_path, FS_PATH_SEP);  // TODO: Test strncpy here instead?
 
     // Create the fdir
-    // printf("Creating dir -\npar_path: %s\nname: %s\n", par_path, name); // Debug
+    printf("Creating dir -\npar_path: %s\nname: %s\n", par_path, name); // Debug
     Inode *parent = fs_pathresolve(fs, par_path, errnoptr);
     Inode *newdir = dir_new(fs, parent, name);
     
@@ -918,11 +929,12 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // Get the indexes of the file/dir seperators and path sizes
     size_t from_len, to_len;
-    size_t from_idx = path_name_offset(from, &from_len);
-    size_t to_idx = path_name_offset(to, &to_len);
+    size_t from_idx = str_name_offset(from, &from_len);
+    size_t to_idx = str_name_offset(to, &to_len);
 
     char *from_path = strndup(from, (from_idx > 1 ) ? from_idx-1 : from_idx);
     char *to_path = strndup(to, to_idx);
+    char *from_name = strndup(from + from_idx, from_len - from_idx);
     char *to_name = strndup(to + to_idx, to_len - to_idx);
 
     // Debug
@@ -930,7 +942,7 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
     printf("To: %s\n", to);
     printf("From parent path: %s (%lu)\n", from_path, from_len);
     printf("To parent path: %s (%lu)\n", to_path, from_idx);
-    printf("From name: %s (%lu)\n", from_path, from_len);
+    printf("From name: %s (%lu)\n",from_name, from_len);
     printf("To name: %s\n", to_name);
 
     Inode *from_parent = fs_pathresolve(fs, from_path, errnoptr);
@@ -939,11 +951,13 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     Inode *from_child = fs_pathresolve(fs, from, errnoptr);
     Inode *to_child = fs_pathresolve(fs, to, errnoptr);
-    
+    printf("!: %s\n", to_child->name);
     // Ensure all the boys are in the band
     if (!from_parent || !from_child || !to_parent) {
         *errnoptr = EINVAL;
+        free(from_name);
         free(to_name);
+        free(from_path);
         free(to_path);
         return -1;
     }
@@ -990,12 +1004,16 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
         sz = inode_data_get(fs, from_child, data);   // Get old data
         
         // If the destination exists, overwrite it in an atomic way
-        if(to_child)
+        if(to_child) {
+            printf("exists\n");
             inode_data_set(fs, to_child, data, sz); // TODO: atomically
+        }
 
         // Else, create it
-        else
+        else {
+            printf("!exists\n");
             file_new(fs, to_path, to_name, data, sz);
+        }
 
         // TODO: Remove old file
     }
