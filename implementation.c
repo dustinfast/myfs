@@ -642,7 +642,7 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
         return -1;
     }
 
-    // Get the directory's lookup table and add an extra end char
+    // Get the directory's lookup table and add an extra end char to help parse
     char *data = malloc(*(int*)(&inode->file_size_b) + 1);
     size_t data_sz = inode_data_get(fs, inode, data);
     memcpy(data + data_sz + 1, FS_DIRDATA_END, 1);
@@ -655,10 +655,9 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     char *names = malloc(0);
     next = name = data;
     while ((token = strsep(&next, FS_DIRDATA_END))) {
-        if (!next || !inode_name_charvalid(*token)) // Ignore last sep and null
-            break;
+        if (!next || *token <= 64 || !inode_name_charvalid(*token))
+            break; // Break on overrun
 
-        if (*token <= 64) break;
         name = token;                               // Extract file/dir name
         name = strsep(&name, FS_DIRDATA_SEP);
         int nlen = strlen(name) + 1;                // +1 for null term
@@ -1074,7 +1073,6 @@ int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
     return 0;  // Success
 }
 
-/* -- __myfs_open_implem() -- */
 /* Implements an emulation of the open system call on the filesystem 
    of size fssize pointed to by fsptr, without actually performing the opening
    of the file (no file descriptor is returned).
