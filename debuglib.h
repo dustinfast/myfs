@@ -1,4 +1,4 @@
-/* A collection of debug functions for myfs.
+/* A collection of debug/test functoins for myfs.
 
    Author: Dustin Fast, 2018
 */
@@ -17,7 +17,7 @@ static void print_struct_debug() {
 
 // Print filesystem stats
 static void print_fs_debug(FSHandle *fs) {
-    printf("File system properties: \n");
+    printf("\nFile system properties: \n");
     printf("    fs (fsptr)      : %lu\n", (lui)fs);
     printf("    fs->num_inodes  : %lu\n", (lui)fs->num_inodes);
     printf("    fs->num_memblks : %lu\n", (lui)fs->num_memblocks);
@@ -29,7 +29,7 @@ static void print_fs_debug(FSHandle *fs) {
     printf("    Free space      : %lu bytes (%lu kb)\n", fs_freespace(fs), bytes_to_kb(fs_freespace(fs)));
 }
 
-// Print inode stats
+// Prints an inode's properties
 static void print_inode_debug(FSHandle *fs, Inode *inode) {
     if (inode == NULL) {
         printf("    FAIL: inode is NULL.\n");
@@ -68,7 +68,7 @@ static void print_result_debug(char *title, int r, int expected) {
     printf("\n");
 }
 
-// Helper to resolve pathand return data for a file
+// Helper to resolve path and return data for a file
 static size_t debug_file_data_get(FSHandle *fs, const char *path, char *buf) {
     Inode *inode = resolve_path(fs, path);
     return inode_data_get(fs, inode, buf);
@@ -78,16 +78,16 @@ static size_t debug_file_data_get(FSHandle *fs, const char *path, char *buf) {
 static void init_files_debug(FSHandle *fs) {
     printf("\n--- Initializing test files/folders ---");
 
-    // Init dir 1 test files
+    // Init dir1 test files
     Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
     file_new(fs, "/dir1", "file1", "hello from file 1", 17);
     file_new(fs, "/dir1", "file2", "hello from file 2", 17);
     
-    // Init dir 2 test files
+    // Init dir2 test files
     Inode *dir2 = dir_new(fs, dir1, "dir2");
     file_new(fs, "/dir2", "file3", "hello from file 3", 17);
     
-    // Init /file 5 consisting of a lg string of a's & b's & terminated w/ 'c'.
+    // Init /file5, consisting of a lg string of a's & b's & terminated w/ 'c'.
     size_t data_sz = DATAFIELD_SZ_B * 1.25;
     char *lg_data = malloc(data_sz);
     for (size_t i = 0; i < data_sz; i++) {
@@ -112,16 +112,13 @@ int main()
     /////////////////////////////////////////////////////////////////////////
     // Init a fs for testing purposes
 
-    size_t fssize = kb_to_bytes(32) + ST_SZ_FSHANDLE;
-
     // Allocate fs space and associate with a filesys handle
+    size_t fssize = kb_to_bytes(32) + ST_SZ_FSHANDLE;
     void *fsptr = malloc(fssize); 
     FSHandle *fs = fs_init(fsptr, fssize);
 
-    printf("\n");
     print_fs_debug(fs);      // Display fs properties
-
-    init_files_debug(fs);    // Init test files and dirs for debugging
+    init_files_debug(fs);    // Init test files/dirs
 
     ////////////////////////////////////////////////////////////////////////
     // Display a sample of the test files attributes
@@ -154,7 +151,6 @@ int main()
 
     // Shared results containers
     char *buf;
-    size_t sz;
     int e;
     int r;
 
@@ -192,7 +188,7 @@ int main()
     print_result_debug("rmdir_implem(SUCCESS):\n", r, 0);
 
     r = __myfs_rmdir_implem(fsptr, fssize, &e, dirpath);
-    print_result_debug("rmdir_implem(FAIL/NONEMPTY):\n", r, -1);
+    print_result_debug("rmdir_implem(FAIL/NOTEMPTY):\n", r, -1);
 
     r = __myfs_rmdir_implem(fsptr, fssize, &e, filepath);
     print_result_debug("rmdir_implem(FAIL/ISNOTDIR):\n", r, -1);
@@ -223,43 +219,41 @@ int main()
     print_result_debug("readdir_implem('file1, file2'):\n", r, 3);
 
     r = __myfs_readdir_implem(fsptr, fssize, &e, filepath, namesptr);
-    print_result_debug("readdir_implem(FAIL/NOTDIR):\n", r, -1);
+    print_result_debug("readdir_implem(FAIL/ISNOTDIR):\n", r, -1);
 
     // rename (file)
     r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/file2", "/file2");
-    print_result_debug("\nrename_implem(FILE-SUCCESS):\n", r, 0);
+    print_result_debug("rename_implem(FILE-SUCCESS):\n", r, 0);
 
     // rename (dir)
     r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/dir2", "/dir2");
-    print_result_debug("\nrename_implem(DIREMPTY-SUCCESS):\n", r, 0);
+    print_result_debug("rename_implem(DIREMPTY-SUCCESS):\n", r, 0);
 
     r = __myfs_rename_implem(fsptr, fssize, &e, "/dir2", "/dir1/dir2");
-    print_result_debug("\nrename_implem(DIRNOTEMPTY-SUCCESS):\n", r, 0);
+    print_result_debug("rename_implem(DIRNOTEMPTY-SUCCESS):\n", r, 0);
 
     // read
-    printf("\nread_implem('Hello from file 2'):\n");
+    printf("read_implem('hello from file 2'):\n");
     buf = malloc(17);
     r = __myfs_read_implem(fsptr, fssize, &e, filepath, buf, 17, 0);
-    printf("(%d bytes read)\n", r); 
-    write(fileno(stdout), buf, r);
+    (memcmp(buf, "hello from file 1", 17) == 0) ? printf("PASS") : printf("FAIL");    
     free(buf);
 
     // write
-    printf("\n\nwrite_implem('Hello from test write'):\n");
+    printf("\nwrite_implem('hello from test write'):\n");
     r = __myfs_write_implem(
         fsptr, fssize, &e, filepath, "test write", 10, 11);
-    printf("(%d bytes written)\n", r); 
     buf = malloc(1);
-    sz = debug_file_data_get(fs, filepath, buf);
-    write(fileno(stdout), buf, sz);
+    debug_file_data_get(fs, filepath, buf);
+    (memcmp(buf, "hello from test write", 21) == 0) ? printf("PASS") : printf("FAIL");
     free(buf);
 
     // truncate
-    printf("\n\ntruncate_implem('hello'):\n");
+    printf("\ntruncate_implem('hello'):\n");
     r = __myfs_truncate_implem(fsptr, fssize, &e, filepath, 5);
     buf = malloc(1);
-    sz = debug_file_data_get(fs, filepath, buf);
-    write(fileno(stdout), buf, sz);
+    debug_file_data_get(fs, filepath, buf);
+    (memcmp(buf, "hello", 5) == 0) ? printf("PASS") : printf("FAIL");
     free(buf);
 
 
