@@ -3,6 +3,26 @@
    Author: Dustin Fast, 2018
 */
 
+// Returns number of free bytes in the fs, as based on num free mem blocks.
+static size_t fs_freespace_debug(FSHandle *fs) {
+    size_t num_memblocks = memblocks_numfree(fs);
+    return num_memblocks * DATAFIELD_SZ_B;
+}
+
+// Returns the number of free inodes in the filesystem
+static size_t inodes_numfree_debug(FSHandle *fs) {
+    Inode *inode = fs->inode_seg;
+    size_t num_inodes = fs->num_inodes;
+    size_t num_free = 0;
+
+    for (int i = 0; i < num_inodes; i++) {
+        if (inode_isfree(inode))
+            num_free++;
+        inode++;
+    }
+    return num_free;
+}
+
 // Print filesystem's data structure sizes
 static void print_struct_debug() {
     printf("File system's data structures:\n");
@@ -21,12 +41,14 @@ static void print_fs_debug(FSHandle *fs) {
     printf("    fs (fsptr)      : %lu\n", (lui)fs);
     printf("    fs->num_inodes  : %lu\n", (lui)fs->num_inodes);
     printf("    fs->num_memblks : %lu\n", (lui)fs->num_memblocks);
-    printf("    fs->size_b      : %lu (%lu kb)\n", fs->size_b, bytes_to_kb(fs->size_b));
+    printf("    fs->size_b      : %lu (%lu kb)\n", fs->size_b, 
+        bytes_to_kb(fs->size_b));
     printf("    fs->inode_seg   : %lu\n", (lui)fs->inode_seg);
     printf("    fs->mem_seg     : %lu\n", (lui)fs->mem_seg);
-    printf("    Free Inodes     : %lu\n", inodes_numfree(fs));
+    printf("    Free Inodes     : %lu\n", inodes_numfree_debug(fs));
     printf("    Num Memblocks   : %lu\n", memblocks_numfree(fs));
-    printf("    Free space      : %lu bytes (%lu kb)\n", fs_freespace(fs), bytes_to_kb(fs_freespace(fs)));
+    printf("    Free space      : %lu bytes (%lu kb)\n", 
+        fs_freespace_debug(fs), bytes_to_kb(fs_freespace_debug(fs)));
 }
 
 // Prints an inode's properties

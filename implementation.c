@@ -325,8 +325,7 @@ static int child_remove(FSHandle *fs, const char *path) {
     Inode *child;
 
     // Split the given path into seperate path and filename elements
-    char *par_path, *dirname;
-    char *start, *token, *next;
+    char *par_path, *start, *token, *next;
 
     start = next = strdup(path);        // Duplicate path so we can manipulate
     next++;                             // Skip initial seperator
@@ -334,9 +333,7 @@ static int child_remove(FSHandle *fs, const char *path) {
     *par_path = '\0';
 
     while ((token = strsep(&next, FS_PATH_SEP))) {
-        if (!next) {
-            dirname = token;
-        } else {
+        if (next) {
             par_path = realloc(par_path, str_len(par_path) + str_len(token) + 1);
             strcat(par_path, FS_PATH_SEP);
             strcat(par_path, token);

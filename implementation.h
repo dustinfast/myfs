@@ -238,7 +238,6 @@ static int inode_name_charvalid(char ch) {
 // Returns 1 iff name is legal ascii chars and within max length, else 0.
 static int inode_name_isvalid(char *name) {
     int len = 0;
-    int ord = 0;
 
     for (char *c = name; *c != '\0'; c++) {
         len++;
@@ -286,20 +285,6 @@ static Inode* inode_nextfree(FSHandle *fs) {
     return NULL;
 }
 
-// Returns the number of free inodes in the filesystem
-static size_t inodes_numfree(FSHandle *fs) {
-    Inode *inode = fs->inode_seg;
-    size_t num_inodes = fs->num_inodes;
-    size_t num_free = 0;
-
-    for (int i = 0; i < num_inodes; i++) {
-        if (inode_isfree(inode))
-            num_free++;
-        inode++;
-    }
-    return num_free;
-}
-
 
 /* End inode helpers ----------------------------------------------------- */
 /* Begin String Helpers -------------------------------------------------- */
@@ -337,12 +322,6 @@ static size_t str_name_offset(const char *path, size_t *pathlen) {
 /* End String Helpers ---------------------------------------------------- */
 /* Begin filesystem helpers ---------------------------------------------- */
 
-
-// Returns number of free bytes in the fs, as based on num free mem blocks.
-static size_t fs_freespace(FSHandle *fs) {
-    size_t num_memblocks = memblocks_numfree(fs);
-    return num_memblocks * DATAFIELD_SZ_B;
-}
 
 // Returns the root directory's inode for the given file system.
 static Inode* fs_rootnode_get(FSHandle *fs) {
