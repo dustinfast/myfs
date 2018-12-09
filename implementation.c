@@ -2,21 +2,21 @@
 
   MyFS: a tiny file-system written for educational purposes
 
-  MyFS is 
+  MyFS is Copyright 2018 University of Alaska Anchorage, College of Engineering.
 
-  Copyright 2018 by
+  Author: 
+    Dustin Fast
 
-  University of Alaska Anchorage, College of Engineering.
+  Outline/Stubs
+    Christoph Lauter
+                
+  Contributors:
+    Joel Keller
+    Brooks Woods
 
-  Contributors: Dustin Fast
-                Christoph Lauter
-                Joel Keller
-                Brooks Woods
-
-  and based on 
-
-  FUSE: Filesystem in Userspace
-  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+  Based on:
+    FUSE: Filesystem in Userspace
+    Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
 
   This program can be distributed under the terms of the GNU GPL.
   See the file LICENSE.
@@ -676,7 +676,6 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 
         name = token;                           // Extract the file/dir name
         name = strsep(&name, FS_DIRDATA_SEP);
-
 
         int nlen = strlen(name) + 1;            // +1 for null term
         names_len += nlen;              
