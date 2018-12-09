@@ -660,36 +660,43 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // Get the directory's lookup table and add an extra end char
     char *data = malloc(0);
+    char ***names = calloc(0, 0);
     size_t data_sz = inode_data_get(fs, inode, data);
     data = realloc(data, data_sz + 1);
     memcpy(data + data_sz + 1, FS_DIRDATA_END, 1);
 
     // Build the names array from the lookup table data
-    char *names, *start, *token, *prev, *next, *curr, *temp;
+    char *token, *name, *next;
     size_t names_count = 0;
-    size_t names_sz = 0;
+    size_t names_len = 0;
 
-    names = malloc(1);
-    start = next = prev = data;
+    next = name = data;
     while ((token = strsep(&next, FS_DIRDATA_END))) {
-        printf("token: %s\n", token);
+        if (!next) break;                       // Ignore the last end char
 
-        // memcpy(names + names_sz, token, 
+        name = token;                           // Extract the file/dir name
+        name = strsep(&name, FS_DIRDATA_SEP);
 
-        // int diff = prev - 
-        // names_sz += prev 
-        // names = realloc(names, names_sz + );
 
-        // prev = strsep(&next, FS_DIRDATA_END)
+        int nlen = strlen(name) + 1;            // +1 for null term
+        names_len += nlen;              
+        names = realloc(names, names_len);      // Resize to prep for name cpy    
 
-        // memset(contents + contents_sz, '\0', 1);
-        // names_count++;
+        memcpy(names + names_len - nlen, name, nlen - 1);
+        memset(names + names_len - 1, '\0', 1);
+        names_count++;
+        
+        // printf("name: %s\n", name);             // Debug
     }
 
-    free(data);
-    **namesptr = names;
+    // write(fileno(stdout), names, names_len); printf("\n");
 
-    return -1;
+    if (names_count)
+        namesptr = names;
+
+    free(data);
+
+    return names_count;
 }
 
 /* Implements an emulation of the mknod system call for regular files
