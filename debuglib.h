@@ -110,7 +110,7 @@ int main()
     print_struct_debug();
       
     /////////////////////////////////////////////////////////////////////////
-    // Begin test filesys init  
+    // Init a fs for testing purposes
 
     size_t fssize = kb_to_bytes(32) + ST_SZ_FSHANDLE;
 
@@ -121,10 +121,10 @@ int main()
     printf("\n");
     print_fs_debug(fs);      // Display fs properties
 
-    init_files_debug(fs);       // Init test files and dirs for debugging
+    init_files_debug(fs);    // Init test files and dirs for debugging
 
     ////////////////////////////////////////////////////////////////////////
-    // Display test file/directory attributes
+    // Display a sample of the test files attributes
 
     // Root dir
     printf("\nExamining / ");
@@ -267,23 +267,23 @@ int main()
     free(buf);
 
 
-    // // rename (file)
-    print_inode_debug(fs, resolve_path(fs, "/dir1"));
+    // rename (file)
+    // print_inode_debug(fs, resolve_path(fs, "/dir1"));
 
-    char rename1[] = "\nrename_implem(FileToFile-SUCCESS):\n";
-    r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/file1", "/file1");
+    // char rename1[] = "\nrename_implem(FileToFile-SUCCESS):\n";
+    // r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/file1", "/file1");
+    // print_result_debug(rename1, r, 0);
+
+    // print_inode_debug(fs, resolve_path(fs, "/dir1"));
+
+    // rename (dir)
+    print_inode_debug(fs, resolve_path(fs, "/dir1/"));
+
+    char rename1[] = "\nrename_implem(DirToDir-SUCCESS):\n";
+    r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/dir2", "/dir2");
     print_result_debug(rename1, r, 0);
 
-    print_inode_debug(fs, resolve_path(fs, "/dir1"));
-
-    // rename (dir) (Working, but does not remove old entry from parent lookup table
-    // print_inode_debug(fs, resolve_path(fs, "/dir1/dir2/"));
-
-    // char rename1[] = "\nrename_implem(DirToDir-SUCCESS):\n";
-    // r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/dir2", "/dir2");
-    // // print_result_debug(rename1, r, 0);
-
-    // print_inode_debug(fs, resolve_path(fs, "/dir2"));
+    print_inode_debug(fs, resolve_path(fs, "/"));
 
 
     /////////////////////////////////////////////////////////////////////////
