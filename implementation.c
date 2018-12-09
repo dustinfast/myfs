@@ -929,25 +929,33 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
     size_t to_idx = str_name_offset(to, &to_len);
 
     char *from_path = strndup(from, (from_idx > 1 ) ? from_idx-1 : from_idx);
-    char *to_path = strndup(to, to_idx);
     char *from_name = strndup(from + from_idx, from_len - from_idx);
+    char *to_path = strndup(to, to_idx);
     char *to_name = strndup(to + to_idx, to_len - to_idx);
-
-    // Debug
-    printf("\nRenaming: %s\n", from);
-    printf("To: %s\n", to);
-    printf("From path: %s\n", from_path);
-    printf("To path: %s\n", to_path);
-    printf("From name: %s\n",from_name);
-    printf("To name: %s\n", to_name);
+    
+    // TODO: Handle cases where a trailing seperator is left in the to_path
+    // int plen = str_len(to_path);
+    // if (plen > 1 && *(to_path + str_len(to_path)-1) == '/')
+    //     to_idx = to_idx - 1;
 
     Inode *from_parent = fs_pathresolve(fs, from_path, errnoptr);
     Inode *to_parent = fs_pathresolve(fs, to_path, errnoptr);
-    free(from_path);
 
     Inode *from_child = fs_pathresolve(fs, from, errnoptr);
     Inode *to_child = fs_pathresolve(fs, to, errnoptr);
-    printf("!: %s\n", to_child->name);
+    
+    // Debug
+    // printf("\nRenaming: %s\n", from);
+    // printf("To: %s\n", to);
+    // printf("from_idx: %lu\n", from_idx);
+    // printf("from_len: %lu\n", from_len);
+    // printf("to_idx: %lu\n", to_idx);
+    // printf("to_len: %lu\n", to_len);
+    // printf("From path: %s\n", from_path);
+    // printf("To path: %s\n", to_path);
+    // printf("From name: %s\n",from_name);
+    // printf("To name: %s\n", to_name);
+
     // Ensure all the boys are in the band
     if (!from_parent || !from_child || !to_parent) {
         *errnoptr = EINVAL;
@@ -968,7 +976,7 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
         if(!to_child) {
             printf("!to_child\n");
             Inode *dest = dir_new(fs, to_parent, to_name);  // Create dest
-            sz = inode_data_get(fs, from_child, data);      // Get old data
+            sz = inode_data_get(fs, from_child, data);      // Get dir's data
             inode_data_set(fs, dest, data, sz);             // Copy to dest
             dir_remove(fs, from);                           // Remove old dir
         } 
@@ -976,9 +984,9 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
         // If dest does exist and is empty, simply overwrite the existing data
         else if (to_child->is_dir && !to_child->file_size_b) {
             printf("child is dir && empty\n");
-            sz = inode_data_get(fs, from_child, data);      // Get old data
+            sz = inode_data_get(fs, from_child, data);      // Get dir's data
             inode_data_set(fs, to_child, data, sz);         // Copy to dest
-            // dir_remove(fs, from);                        // Remove old dir
+            dir_remove(fs, from);                           // Remove old dir
         }
         
         // Else, error
@@ -995,22 +1003,15 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // Else, 'from' is a regular file
     else {
-        printf("reg file\n");
-
         sz = inode_data_get(fs, from_child, data);   // Get file's data
         
         // If the destination exists, overwrite it in an atomic way
-        if(to_child) {
-            printf("exists\n");
-            inode_data_set(fs, to_child, data, sz); // TODO: atomically
-        }
+        if(to_child)
+            inode_data_set(fs, to_child, data, sz);  // TODO: Atomic
 
         // Else, create it
-        else {
-            printf("!exists\n");
-            printf("creating: %s%s\n", to_path, to_name);
+        else 
             file_new(fs, to_path, to_name, data, sz);
-        }
 
         // TODO: Remove old file
     }
@@ -1021,7 +1022,7 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
     free(from_path);
     free(to_path);
 
-    return -1;
+    return 0;
 }
 
 /* Implements an emulation of the truncate system call on the filesystem 

@@ -273,17 +273,19 @@ int main()
     // char rename1[] = "\nrename_implem(FileToFile-SUCCESS):\n";
     // r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/file1", "/file1");
     // print_result_debug(rename1, r, 0);
-
     // print_inode_debug(fs, resolve_path(fs, "/dir1"));
 
     // rename (dir)
-    print_inode_debug(fs, resolve_path(fs, "/dir1/"));
+    // print_inode_debug(fs, resolve_path(fs, "/dir1"));
+    // char rename2[] = "\nrename_implem(DirEmpty-SUCCESS):\n";
+    // r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/dir2", "/dir2");
+    // print_result_debug(rename2, r, 0);
+    // print_inode_debug(fs, resolve_path(fs, "/dir1"));
 
-    char rename1[] = "\nrename_implem(DirToDir-SUCCESS):\n";
-    r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/dir2", "/dir2");
-    print_result_debug(rename1, r, 0);
+    // TODO: char rename3[] = "\nrename_implem(DirNotEmpty-SUCCESS):\n";
+    // r = __myfs_rename_implem(fsptr, fssize, &e, "/dir2", "/dir1/dir2");
+    // print_result_debug(rename3, r, 0);
 
-    print_inode_debug(fs, resolve_path(fs, "/"));
 
 
     /////////////////////////////////////////////////////////////////////////

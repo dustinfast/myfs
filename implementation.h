@@ -332,7 +332,7 @@ static size_t str_name_offset(const char *path, size_t *pathlen) {
     next++;                       // Skip initial seperator
     
     while ((token = strsep(&next, FS_PATH_SEP))) {
-        if (!next) 
+        if (!next)
             name = token;
     }
 
