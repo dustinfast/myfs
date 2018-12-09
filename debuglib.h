@@ -64,6 +64,11 @@ static void print_result_debug(char *title, int r, int expected) {
     printf("\n");
 }
 
+// Helper to resolve pathand return data for a file
+static size_t debug_file_data_get(FSHandle *fs, const char *path, char *buf) {
+    Inode *inode = resolve_path(fs, path);
+    return inode_data_get(fs, inode, buf);
+}
 
 // Sets up files inside the filesystem for debugging purposes
 static void init_files_debug(FSHandle *fs) {
@@ -89,12 +94,6 @@ static void init_files_debug(FSHandle *fs) {
             *c = 'b';
     }
     file_new(fs, "/", "file5", lg_data, data_sz);
-}
-
-// Helper to resolve pathand return data for a file
-static size_t file_data_get(FSHandle *fs, const char *path, char *buf) {
-    Inode *inode = resolve_path(fs, path);
-    return inode_data_get(fs, inode, buf);
 }
 
 
@@ -148,13 +147,15 @@ int main()
     // Begin 13 func tests
     printf("\n--- Testing __myfs_implem functions ---\n");
 
-    char *filepath = path_file2;  // Test file path
-    char *dirpath = path_dir1;    // Test directory path
+    // Test paths
+    char *filepath = path_file2;
+    char *dirpath = path_dir1;
     char nofilepath[] = "/filethatdoesntexist";
     char badpath[] = "badpath";
     char newfilepath[] = "/newfile1";
     char newdirpath[] = "/newdir1";
 
+    // Results containers
     int e;
     int r;
     char *buf;
@@ -198,7 +199,6 @@ int main()
 
 
     // rmdir
-    // TODO: Segfault occasional occurs here?
     r = __myfs_rmdir_implem(fsptr, fssize, &e, newdirpath);
     print_result_debug("rmdir_implem(SUCCESS):\n", r, 0);
 
@@ -237,8 +237,8 @@ int main()
     r = __myfs_readdir_implem(fsptr, fssize, &e, filepath, namesptr);
     print_result_debug("readdir_implem(FAIL/NOTDIR):\n", r, -1);
 
-    // TODO: r = __myfs_readdir_implem(fsptr, fssize, &e, dirpath, namesptr);
-    // print_result_debug("readdir_implem('file1, file2'):\n", r, 0);
+    r = __myfs_readdir_implem(fsptr, fssize, &e, dirpath, namesptr);
+    print_result_debug("readdir_implem('file1, file2'):\n", r, 2);
 
 
     // read
@@ -256,7 +256,7 @@ int main()
         fsptr, fssize, &e, filepath, "test write", 10, 11);
     printf("(%d bytes written)\n", r); 
     buf = malloc(1);
-    sz = file_data_get(fs, filepath, buf);
+    sz = debug_file_data_get(fs, filepath, buf);
     write(fileno(stdout), buf, sz);
     free(buf);
 
@@ -265,7 +265,7 @@ int main()
     printf("\n\ntruncate_implem('hello'):\n");
     r = __myfs_truncate_implem(fsptr, fssize, &e, filepath, 5);
     buf = malloc(1);
-    sz = file_data_get(fs, filepath, buf);
+    sz = debug_file_data_get(fs, filepath, buf);
     write(fileno(stdout), buf, sz);
     free(buf);
 

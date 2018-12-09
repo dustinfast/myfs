@@ -661,7 +661,6 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // Get the directory's lookup table and add an extra end char
     char *data = malloc(0);
-    char ***names = calloc(0, 0);
     size_t data_sz = inode_data_get(fs, inode, data);
     data = realloc(data, data_sz + 1);
     memcpy(data + data_sz + 1, FS_DIRDATA_END, 1);
@@ -671,6 +670,7 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     size_t names_count = 0;
     size_t names_len = 0;
 
+    char *names = malloc(0);
     next = name = data;
     while ((token = strsep(&next, FS_DIRDATA_END))) {
         if (!next) break;                       // Ignore the last end char
@@ -686,7 +686,11 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
         memset(names + names_len - 1, '\0', 1);
         names_count++;
         
-        // printf("name: %s\n", name);             // Debug
+        // printf("\nname: %s\n", name);        // Debug
+        // printf("nameslen: %lu\n", names_len);
+        // printf("ptr     : %lu\n", names);
+        // printf("set 1    : %lu\n", names_len - nlen);
+        // printf("set 2    : %lu\n", names_len - 1);
     }
 
     // write(fileno(stdout), names, names_len); printf("\n");
