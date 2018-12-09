@@ -74,9 +74,10 @@ static FSHandle *fs_handle(void *fsptr, size_t fssize, int *errnoptr) {
 // On fail, sets errnoptr to ENOENT and returns NULL.
 // Assumes: path is absolute.
 static Inode *fs_pathresolve(FSHandle *fs, const char *path, int *errnoptr) {
+    // Ensure at least root dir symbol present
     if (strncmp(path, FS_PATH_SEP, 1) != 0) {
         *errnoptr = EINVAL;
-        return NULL;                // No root dir symbol in path
+        return NULL;                
     }
 
     Inode *inode = resolve_path(fs, path);
@@ -111,12 +112,13 @@ static void inode_data_remove(FSHandle *fs, Inode *inode, int newblock) {
         memset(memblock, 0, (block_end - (void*)memblock));  // Format memblock
         memblock = (MemHead*)block_next;                     // Advance to next
         
-    } while (block_next != (MemHead*)fs);           // i.e. offset_nextblk != 0
+    } while (block_next != (MemHead*)fs);                   // i.e. nextblk != 0
 
-    // Update the inode to reflect the disassociation and replace memblock
+    // Update the inode to reflect the disassociation
     *(int*)(&inode->file_size_b) = 0;
     inode_lasttimes_set(inode, 1);
 
+    // Associate w/ new memblock, if specified
     if (newblock)
         inode->offset_firstblk = 
             (size_t*)offset_from_ptr(fs, memblock_nextfree(fs));
@@ -127,8 +129,8 @@ static void inode_data_remove(FSHandle *fs, Inode *inode, int newblock) {
 // Assumes: Filesystem has enough free memblocks to accomodate data.
 // Assumes: inode has its offset_firstblk set.
 static void inode_data_set(FSHandle *fs, Inode *inode, char *data, size_t sz) {
-    // Format the inode, if needed
-    if (inode->file_size_b)
+    // If inode has existing data or no memblock associated.
+    if (inode->file_size_b || inode->offset_firstblk == 0)
         inode_data_remove(fs, inode, 1);
 
     MemHead *memblock = inode_firstmemblock(fs, inode);
@@ -149,7 +151,7 @@ static void inode_data_set(FSHandle *fs, Inode *inode, char *data, size_t sz) {
         
         // Debug
         // size_t blocks_needed = num_bytes / DATAFIELD_SZ_B;
-        // printf("Need %lu blocks for these %lu bytes\n ", blocks_needed, num_bytes);
+        // printf("Need %lu blocks for %lu bytes\n ", blocks_needed, num_bytes);
 
         // Populate the memory blocks with the data
         char *data_idx = data;
@@ -159,12 +161,11 @@ static void inode_data_set(FSHandle *fs, Inode *inode, char *data, size_t sz) {
         while (num_bytes) {
             // Determine num bytes to write this iteration
             if (num_bytes > DATAFIELD_SZ_B)
-                write_bytes = DATAFIELD_SZ_B;  // More blocks will be needed
+                write_bytes = DATAFIELD_SZ_B;           // More blocks yet needed
             else
-                write_bytes = num_bytes;       // Last block needed
+                write_bytes = num_bytes;                // Last block needed
 
-            // Denote ptr to write addr
-            char *ptr_writeto = memblock_datafield(fs, memblock);
+            char *ptr_writeto = memblock_datafield(fs, memblock);  // data field
 
             // Write the bytes to the data field
             memcpy(ptr_writeto, data_idx, write_bytes);
@@ -173,17 +174,19 @@ static void inode_data_set(FSHandle *fs, Inode *inode, char *data, size_t sz) {
 
             // Update next block offsets as needed
             if (prev_block) 
-                prev_block->offset_nextblk = (size_t*)offset_from_ptr(fs, (void*)memblock);
+                prev_block->offset_nextblk = 
+                    (size_t*)offset_from_ptr(fs, (void*)memblock);
             prev_block = memblock;
             memblock->offset_nextblk = 0;
         
             // Set up the next iteration
             data_idx += write_bytes;
             num_bytes = num_bytes - write_bytes; // Adjust num bytes to write
-            memblock = memblock_nextfree(fs); // Adavance to next free memblock
+            memblock = memblock_nextfree(fs);    // Adavance to next free block
         }
     }
 
+    // Update access/mod times and file size
     inode_lasttimes_set(inode, 1);
     inode->file_size_b = (size_t*) sz;
 }
@@ -191,23 +194,18 @@ static void inode_data_set(FSHandle *fs, Inode *inode, char *data, size_t sz) {
 // Appends the given data to the given Inode's current data. For appending
 // a file/dir "label:offset\n" line to the directory, for example.
 // No validation is performed on append_data. Assumes: append_data is a string.
-// Returns 1 on success, else 0.
-static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
-    // Get the parent dir's curr data (i.e. a list of files/dirs)
+static void inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
+    // Get parent dir's lookup table
     size_t data_sz = 0;
     size_t append_sz = str_len(append_data);
-    char *data = malloc(*(int*)(&inode->file_size_b) + append_sz + 1); // TODO: +1?
+    char *data = malloc(*(int*)(&inode->file_size_b) + append_sz);
     data_sz = inode_data_get(fs, inode, data);
     size_t total_sz = data_sz + append_sz;
 
-    memcpy(data + data_sz, append_data, append_sz);  // Build concat of data
-    inode_data_set(fs, inode, data, total_sz);      // Overwrite existing data
+    // Concat append data
+    memcpy(data + data_sz, append_data, append_sz);
+    inode_data_set(fs, inode, data, total_sz);
     free(data);
-
-    // printf("CALLING SET FOR %lu bytes w:\n", total_sz);
-    // write(fileno(stdout), data, total_sz);
-
-    return 1; // Success
 }
 
 
@@ -218,8 +216,6 @@ static int inode_data_append(FSHandle *fs, Inode *inode, char *append_data) {
 // Returns the inode for the given item (a sub-directory or file) having the
 // parent directory given by inode (Or NULL if item could not be found).
 static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *name) {
-    if (!inode) return NULL;  // Ensure valid inode ptr
-
     // Get parent dir's data
     char *curr_data = malloc(*(int*)(&inode->file_size_b));
     inode_data_get(fs, inode, curr_data);
@@ -239,7 +235,6 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *name) {
 
     if (!offset_ptr || !offsetend_ptr) {
         printf("ERROR: Parse fail - Dir data may be corrupt -\n");
-        printf("parent = %s child = %s\n", inode->name, name);
         free(curr_data);
         return NULL;
     }
@@ -248,22 +243,18 @@ static Inode* dir_subitem_get(FSHandle *fs, Inode *inode, char *name) {
     size_t offset;
     size_t offset_sz = offsetend_ptr - offset_ptr;
     char *offset_str = malloc(offset_sz);
-    memcpy(offset_str, offset_ptr + 1, offset_sz - 1);  // +/- 1 to exclude sep
+    memcpy(offset_str, offset_ptr + 1, offset_sz - 1);  // +/- 1 excludes sep
     sscanf(offset_str, "%zu", &offset);                 // str to size_t
     Inode *subdir_inode = (Inode*)ptr_from_offset(fs, (size_t*)offset);
-
-    // debug
-    // printf("Subdir Offset: %lu\n", offset);
-    // printf("Returning subdir w/name: %s\n", subdir_inode->name);
 
     // Cleanup
     free(curr_data);
     free(offset_str);
     
     if (strcmp(subdir_inode->name, name) != 0)
-        return NULL; // Path not found
+        return NULL;        // Path not found
 
-    return subdir_inode;
+    return subdir_inode;    // Success
 }
 
 // Creates a new/empty sub-directory under the parent dir specified by inode.
@@ -296,10 +287,10 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
 
     // Get the new inode's offset
     char offset_str[1000];      // TODO: sz should be based on fs->num_inodes
-    size_t offset = offset_from_ptr(fs, newdir_inode);        // offset
-    snprintf(offset_str, sizeof(offset_str), "%lu", offset);  // offset to str
+    size_t offset = offset_from_ptr(fs, newdir_inode);        
+    snprintf(offset_str, sizeof(offset_str), "%lu", offset);
 
-    // Build new directory's lookup line: "dirname:offset\n"
+    // Build new directory's lookup line Ex: "dirname:offset\n"
     size_t data_sz = 0;
     data_sz = str_len(dirname) + str_len(offset_str) + 2; // +2 for : and \n
     char *data = malloc(data_sz);
@@ -313,7 +304,7 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     // printf("\n- Adding new dir: %s To: %s\n", dirname, inode->name);
     // printf("  New lookup line to write: %s\n", data);
 
-    // Append the lookup line to the parent dir's existing lookup data
+    // Append the lookup line to the parent dir's existing lookup table
     inode_data_append(fs, inode, data);
     
     // Update parent dir properties
@@ -337,11 +328,10 @@ static int child_remove(FSHandle *fs, const char *path) {
     char *par_path, *dirname;
     char *start, *token, *next;
 
-    par_path = malloc(1);               // Init abs path array
-    *par_path = '\0';
-    
     start = next = strdup(path);        // Duplicate path so we can manipulate
     next++;                             // Skip initial seperator
+    par_path = malloc(1);               // Init abs path str
+    *par_path = '\0';
 
     while ((token = strsep(&next, FS_PATH_SEP))) {
         if (!next) {
@@ -356,11 +346,11 @@ static int child_remove(FSHandle *fs, const char *path) {
     if (*par_path == '\0')
         strcat(par_path, FS_PATH_SEP);  // Path is root
 
-    // Get the inode's for the parent and child
+    // Get the parent and child inode's
     parent = resolve_path(fs, par_path);
     child = resolve_path(fs, path);
 
-    // Ensure valid parent/child before continuing
+    // If valid parent/child...
     if (parent && child) {
         // Denote child's offset, in str form
         char offset_str[1000];   // TODO: sz should be based on fs->num_inodes
@@ -370,7 +360,7 @@ static int child_remove(FSHandle *fs, const char *path) {
         // Remove child's lookup line (ex: "filename:offset\n")
         char *dir_name = strdup(child->name);
         size_t data_sz = 0;
-        data_sz = str_len(dir_name) + str_len(offset_str) + 2; // +2 for : and \n
+        data_sz = str_len(dir_name) + str_len(offset_str) + 2; // +2 for : & nl
         char *rmline = malloc(data_sz);
 
         strcpy(rmline, dir_name);
@@ -408,7 +398,6 @@ static int child_remove(FSHandle *fs, const char *path) {
         inode_data_remove(fs, child, 0); 
         *(int*)(&child->is_dir) = 0;
         *(int*)(&child->subdirs) = 0;
-
 
         free(par_path);
         free(start);
@@ -483,10 +472,6 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     strcat(fileline_data, offset_str);
     strcat(fileline_data, FS_DIRDATA_END);
     
-    //debug
-    // printf("\n- Adding new file: %s To: %s\n", fname, parent->name);
-    // printf("  New lookup line to write: %s (%lu bytes)\n", fileline_data, fileline_sz);
-
     // Append the lookup line to the parent dir's existing lookup data
     inode_data_append(fs, parent, fileline_data);
     free(fileline_data);
@@ -496,13 +481,11 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
 
 
 // Resolves the given file or directory path and returns its associated inode.
-// Author: Joel Keller, Edited by: Dustin Fast
+// Author: Joel Keller & Dustin Fast
 static Inode* resolve_path(FSHandle *fs, const char *path) {
     Inode* root_dir = fs_rootnode_get(fs);
 
-    // printf("resolving: %s\n", path);  // debug
-
-    // If path is root directory 
+    // If path is root
     if (strcmp(path, root_dir->name) == 0)
         return root_dir;
 
@@ -528,8 +511,6 @@ static Inode* resolve_path(FSHandle *fs, const char *path) {
 
     if (curr_dir && strcmp(curr_dir->name, curr_path_part) != 0)
         return NULL; // Path not found
-
-    // printf("resolved: %s\n", curr_dir->name);  // debug
     
     return curr_dir;
 }
@@ -561,8 +542,8 @@ static Inode* resolve_path(FSHandle *fs, const char *path) {
                                             S_IFREG | 0755 for files
 */
 int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
-                          uid_t uid, gid_t gid,
-                          const char *path, struct stat *stbuf) {                          
+                          uid_t uid, gid_t gid, const char *path, 
+                          struct stat *stbuf) {                          
     FSHandle *fs = NULL;       // Handle to the file system
     Inode *inode = NULL;       // Inode for the given path
 
@@ -659,20 +640,21 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     char *names = malloc(0);
     next = name = data;
     while ((token = strsep(&next, FS_DIRDATA_END))) {
-        if (!next || *token <= 64 || !inode_name_charvalid(*token))
-            break; // Break on overrun
+        if (!next || *token <= 64 || !inode_name_charvalid(*token)) break;
 
         name = token;                               // Extract file/dir name
         name = strsep(&name, FS_DIRDATA_SEP);
         int nlen = strlen(name) + 1;                // +1 for null term
-        names_len += nlen;              
-        names = realloc(names, names_len);          // Make room for new item    
+        names_len += nlen;            
 
+        // Append the file/dir name
+        names = realloc(names, names_len);  
         memcpy(names + names_len - nlen, name, nlen - 1);
         memset(names + names_len - 1, '\0', 1);
         names_count++;
         
-        // printf("name: %s\n", name);              // debug
+        // Debug
+        // printf("name: %s\n", name);
         // printf("nameslen: %lu\n", names_len);
         // printf("set 1    : %lu\n", names_len - nlen);
         // printf("set 2    : %lu\n\n", names_len - 1);
@@ -680,7 +662,7 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     }
 
     if (names_count)
-        namesptr = names;
+        namesptr = (char ***)names;
 
     free(data);
 
@@ -711,23 +693,21 @@ int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
     if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
 
-    // Check for root dir symbol in path (assumes path is absolute)
-    if (strncmp(path, FS_PATH_SEP, 1) != 0) {
-        *errnoptr = EINVAL;
+    // Ensure file does not already exist
+    if (fs_pathresolve(fs, path, errnoptr)) {
+        *errnoptr = EEXIST;
         return -1;
     }
 
     // Split the given path into seperate path and filename elements
-    char *abspath, *fname;
-    char *start, *token, *next;
-
-    abspath = malloc(1);            // Init abs path array
-    *abspath = '\0';
+    char *abspath, *fname, *start, *token, *next;
     
     start = next = strdup(path);    // Duplicate path so we can manipulate it
     next++;                         // Skip initial seperator
+    abspath = malloc(1);            // Init abs path array
+    *abspath = '\0';
 
-    while ((token = strsep(&next, FS_PATH_SEP))) {
+    while ((token = strsep(&next, FS_PATH_SEP)))
         if (!next) {
             fname = token;
         } else {
@@ -735,24 +715,21 @@ int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
             strcat(abspath, FS_PATH_SEP);
             strcat(abspath, token);
         }
-    }
 
+    // If parent is root dir
     if (*abspath == '\0')
-        strcat(abspath, FS_PATH_SEP);  // TODO: Test strncpy here instead
+        strcat(abspath, FS_PATH_SEP);
 
-    // Create the file
-    // printf("Creating File -\nabspath: %s\nfname: %s\n", abspath, fname); // Debug
+    // Create the file and do cleanup
     Inode *newfile = file_new(fs, abspath, fname, "", 0);
-    
-    // Cleanup
     free(abspath);
     free(start);
 
     if (!newfile) {
         *errnoptr = EINVAL;
-        return -1;  // Fail - bad fname, or file already exists
+        return -1;  // Fail
     }
-    return 0;  // Success
+    return 0;       // Success
 }
 
 /* Implements an emulation of the unlink system call for regular files
@@ -778,15 +755,12 @@ int __myfs_unlink_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
     if ((!(inode = fs_pathresolve(fs, path, errnoptr)))) return -1;
 
-    // Ensure path denotes a reg file
-    if (inode->is_dir) {
+    if (inode->is_dir || !child_remove(fs, path)) {
         *errnoptr = EINVAL;
-        return -1;
+        return -1;  // Fail
     }
 
-    child_remove(fs, path);
-    
-    return 0;
+    return 0;  // Success
 }
 
 /* Implements an emulation of the rmdir system call on the filesystem 
@@ -818,7 +792,7 @@ int __myfs_rmdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Ensure dir empty
     if (inode->file_size_b)  {
         *errnoptr = ENOTEMPTY;
-        return -1;
+        return -1;  // Fail
     }
 
     if (!child_remove(fs, path)) {
@@ -826,7 +800,7 @@ int __myfs_rmdir_implem(void *fsptr, size_t fssize, int *errnoptr,
         return -1;  // Fail
     }
 
-    return 0; // success
+    return 0;  // Success
 }
 
 /* Implements an emulation of the mkdir system call on the filesystem 
@@ -848,22 +822,21 @@ int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
     if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1;
 
-    // Check for root dir symbol in path (assumes path is absolute)
-    if (strncmp(path, FS_PATH_SEP, 1) != 0) {
-        *errnoptr = EINVAL;
+    // Ensure file does not already exist
+    if (fs_pathresolve(fs, path, errnoptr)) {
+        *errnoptr = EEXIST;
         return -1;
     }
 
-    // Split the given path into seperate path and filename elements
-    char *par_path, *name;
-    char *start, *token, *next;
+    // Seperate the dir name from the path
+    char *par_path, *name, *start, *token, *next;
     
     start = next = strdup(path);    // Duplicate path so we can manipulate it
     next++;                         // Skip initial seperator
-
     par_path = malloc(1);           // Parent path buffer
     *par_path = '\0';
-    while ((token = strsep(&next, FS_PATH_SEP))) {
+
+    while ((token = strsep(&next, FS_PATH_SEP)))
         if (!next) {
             name = token;
         } else {
@@ -871,14 +844,12 @@ int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr,
             strcat(par_path, FS_PATH_SEP);
             strcat(par_path, token);
         }
-    }
 
+    // If parent is root
     if (*par_path == '\0')
-        strcat(par_path, FS_PATH_SEP);  // TODO: Test strncpy here instead?
+        strcat(par_path, FS_PATH_SEP);
 
-    // printf("New dir -\npar_path: %s\nname: %s\n", par_path, name); // Debug
-
-    // Create the fdir
+    // Create the new dir
     Inode *parent = fs_pathresolve(fs, par_path, errnoptr);
     Inode *newdir = dir_new(fs, parent, name);
     
@@ -892,7 +863,6 @@ int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     }
 
     return 0;       // Success
-    
 }
 
 /* Implements an emulation of the rename system call on the filesystem 
@@ -1026,7 +996,7 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
     free(to_name);
     free(to_path);
 
-    return 0;
+    return 0;  // Success
 }
 
 /* Implements an emulation of the truncate system call on the filesystem 
@@ -1063,14 +1033,13 @@ int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
     // If request makes file larger
     if (offset > data_size) {
         size_t diff = offset- data_size;
-        // printf("Expanding (offset=%lu, data_sz=%lu, diff=%lu)...\n", offset, data_size, diff);  // debug
         char *diff_arr = malloc(diff);
         memset(diff_arr, 0, diff);
-        inode_data_append(fs, inode, diff_arr);     // Append zeroes to file
+        inode_data_append(fs, inode, diff_arr);  // Pad w/zeroes
+        free(diff_arr);
     }
     // Else, if request makes file smaller
     else if (offset < data_size) {
-        // printf("Shrinking (offset=%lu, data_sz=%lu)...\n", offset, data_size);  // debug
         inode_data_set(fs, inode, orig_data, offset);
     }
     // Otherwise, file size and contents are unchanged
@@ -1113,7 +1082,7 @@ int __myfs_open_implem(void *fsptr, size_t fssize, int *errnoptr,
     if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
 
     // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
-    if ((!(inode = fs_pathresolve(fs, path, errnoptr)))) return -1;  // Fail
+    if ((!(inode = fs_pathresolve(fs, path, errnoptr)))) return -1;
 
     return 0; // Success
 }
@@ -1135,10 +1104,10 @@ int __myfs_open_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
                        const char *path, char *buf, size_t size, off_t offset) {
-    if (!size) return 0;  // If no bytes to read
+    if (!size) return 0;    // If no bytes to read
 
-    FSHandle *fs;       // Handle to the file system
-    Inode *inode;       // Inode for the given path
+    FSHandle *fs;           // Handle to the file system
+    Inode *inode;           // Inode for the given path
 
     // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
     if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
@@ -1152,18 +1121,13 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
     int cpy_size = 0;
     size_t data_size = inode_data_get(fs, inode, full_buf);
 
-    // If offset is past end of data, zero-bytes readable
-    if (offset >= data_size) { 
-        free(full_buf);
-        return 0;
+    // If offset not beyond end of data
+    if (offset < data_size) {
+        cpy_buf += offset;              // data index
+        cpy_size = data_size - offset;  // bytes to read
+        memcpy(buf, cpy_buf, cpy_size); // 
     }
 
-    // Set data index and num bytes to read based on offset param
-    cpy_buf += offset;
-    cpy_size = data_size - offset;
-
-    // Copy cpy_size bytes into buf
-    memcpy(buf, cpy_buf, cpy_size);
     free(full_buf);
 
     return cpy_size;  // num bytes written
@@ -1207,30 +1171,30 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Else, append to existing file data, starting at offset
     else {   
         // Read file's existing data
-        char *new_data;
         int new_data_sz;
+        char *new_data;
         char *orig_data = malloc(*(int*)(&inode->file_size_b));
         size_t orig_sz = inode_data_get(fs, inode, orig_data);
 
-        // If offset is beyond end of data, zero-bytes to write
-        if (offset >= orig_sz) { 
-            free(orig_data);
-            return 0;
+        // If offset is not beyond end of data
+        if (offset < orig_sz) { 
+            // Build 1st half of new_data from existing file data, starting at offset
+            new_data = strndup(orig_data, offset);
+
+            // Set 2nd half of new_data: size bytes from the buf param
+            new_data_sz = offset + size;
+            new_data = realloc(new_data, new_data_sz);
+            memcpy(new_data + offset, buf, size);
+
+            // Replace the file's data with the new data
+            inode_data_set(fs, inode, new_data, new_data_sz);
+            free(new_data);
+
+        } 
+        else {
+            size = 0; // Set return value
         }
 
-        // Build 1st half of new_data from existing file data, starting at offset
-        new_data = strndup(orig_data, offset);
-
-        // Set 2nd half of new_data: size bytes from the buf param
-        new_data_sz = offset + size;
-        new_data = realloc(new_data, new_data_sz);
-        memcpy(new_data + offset, buf, size);
-
-        // Replace the file's data with the new data
-        inode_data_set(fs, inode, new_data, new_data_sz);
-
-        // Cleanup
-        free(new_data);
         free(orig_data);
     }
 
@@ -1261,6 +1225,7 @@ int __myfs_utimens_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Get inode for the path (sets erronoptr = ENOENT and returns -1 on fail)
     if ((!(inode = fs_pathresolve(fs, path, errnoptr)))) return -1;
 
+    // Copy time structs to callers structs
     memcpy(inode->last_acc, &ts[0], sizeof(struct timespec));
     memcpy(inode->last_mod, &ts[1], sizeof(struct timespec));
     

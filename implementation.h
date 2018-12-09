@@ -167,6 +167,7 @@ static size_t memblocks_numfree(FSHandle *fs) {
 // plus the data of any subsequent MemBlocks extending it.
 // Returns: The size of the data at buf.
 // NOTE: buf should be pre-sized with malloc(inode->file_size_b)
+// Author: Dustin Fast & Brooks Woods
 size_t memblock_data_get(FSHandle *fs, MemHead *memhead, const char *buf) {
     MemHead *memblock = (MemHead*) memhead;
     size_t total_sz = 0;
