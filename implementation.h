@@ -413,7 +413,7 @@ static FSHandle* fs_init(void *fsptr, size_t size) {
         fs->mem_seg = (MemHead*) memblocks_seg;
     }
 
-    return fs;  // Return the handle to the file system
+    return fs;  // Return handle to the file system
 }
 
 

@@ -662,10 +662,10 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     char *data = malloc(0);
     size_t data_sz = inode_data_get(fs, inode, data);
     data = realloc(data, data_sz + 1);
-    memset(data + data_sz + 1, FS_DIRDATA_END, 1);
+    memcpy(data + data_sz + 1, FS_DIRDATA_END, 1);
 
     // Build the names array from the lookup table data
-    char *names, *start, *token, *next, *curr, *temp;
+    char *names, *start, *token, *prev, *next, *curr, *temp;
     size_t names_count = 0;
     size_t names_sz = 0;
 
@@ -687,7 +687,7 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     }
 
     free(data);
-    namesptr = names;
+    **namesptr = names;
 
     return -1;
 }
