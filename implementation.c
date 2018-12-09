@@ -648,8 +648,10 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     char *names = malloc(0);
     next = name = data;
     while ((token = strsep(&next, FS_DIRDATA_END))) {
-        if (!next) break;                           // Ignore last end char
+        if (!next || !inode_name_charvalid(*token)) // Ignore last sep and null
+            break;
 
+        if (*token <= 64) break;
         name = token;                               // Extract file/dir name
         name = strsep(&name, FS_DIRDATA_SEP);
         int nlen = strlen(name) + 1;                // +1 for null term
@@ -660,14 +662,13 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
         memset(names + names_len - 1, '\0', 1);
         names_count++;
         
-        printf("\nname: %s\n", name);        // Debug
+        // printf("name: %s\n", name);              // debug
         // printf("nameslen: %lu\n", names_len);
-        // printf("ptr     : %lu\n", names);
         // printf("set 1    : %lu\n", names_len - nlen);
-        // printf("set 2    : %lu\n", names_len - 1);
+        // printf("set 2    : %lu\n\n", names_len - 1);
+        // write(fileno(stdout), names, names_len); printf("\n");
     }
 
-    // write(fileno(stdout), names, names_len); printf("\n");
 
     if (names_count)
         namesptr = names;

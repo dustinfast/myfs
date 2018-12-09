@@ -226,6 +226,12 @@ static int inode_isdir(Inode *inode) {
         return 1;
 }
 
+// Returns 1 unless ch is one of the following illegal naming chars:
+// {, }, |, ~, DEL, :, /, and comma char
+static int inode_name_charvalid(char ch) {
+    return  (!(ch < 32 || ch == 44 || ch  == 47 || ch == 58 || ch > 122));
+}
+
 // Returns 1 iff name is legal ascii chars and within max length, else 0.
 static int inode_name_isvalid(char *name) {
     int len = 0;
@@ -235,18 +241,16 @@ static int inode_name_isvalid(char *name) {
         len++;
 
         // Check for over max length
-        if (len > NAME_MAXLEN)
-            return 0;
+        if (len > NAME_MAXLEN) return 0;
 
-        // Check for illegal chars ({, }, |, ~, DEL, :, /, and comma char)
-        ord = (int) *c;
-        if (ord < 32 || ord == 44 || ord  == 47 || ord == 58 || ord > 122)
-            return 0;  
+        // Check for illegal chars (see inode_name_charvalid() for details)
+        if (!inode_name_charvalid(*c)) return 0;  
     }
 
-    if (len)
-        return 1;  // Valid
-    return 0;      // Invalid
+    if (!len)
+        return 0;  // Zero length is invalid
+
+    return 1;      // Valid
 }
 
 // Sets the file or directory name (of length sz) for the given inode.
