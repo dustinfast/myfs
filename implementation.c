@@ -384,7 +384,7 @@ static int dir_remove(FSHandle *fs, const char *path) {
         char *offsetend_ptr = line_start + line_sz;
 
         // Build new parent data without the dir's lookup line
-        char *freeme, *new_data = malloc(par_data_sz - line_sz);
+        char *new_data = malloc(par_data_sz - line_sz);  // freeme?
         size_t sz1 =  line_start - par_data;
         size_t sz2 = par_data_sz - sz1 - line_sz;
         memcpy(new_data, par_data, sz1);
@@ -411,9 +411,10 @@ static int dir_remove(FSHandle *fs, const char *path) {
 
         free(par_path);
         free(start);
-        free(freeme);
         free(rmline);
         free(dir_name);
+        // if (freeme != NULL)
+        //     free(freeme);
     
         return 1; // Success
 
@@ -497,21 +498,21 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
 }
 
 // Populates buf with the file's data and returns len(buf).
-static size_t file_data_get(FSHandle *fs, const char *path, char *buf) {
-    Inode *inode = resolve_path(fs, path);
-    return inode_data_get(fs, inode, buf);
-}
+// static size_t file_data_get(FSHandle *fs, const char *path, char *buf) {
+//     Inode *inode = resolve_path(fs, path);
+//     return inode_data_get(fs, inode, buf);
+// } // Unneded
 
 // Removes the data from the given file and updates the necessary fs properties.
-static void file_data_remove(FSHandle *fs, char *path) {
-    Inode *inode = resolve_path(fs, path);
-    if (inode) inode_data_remove(fs, inode);
-}
+// static void file_data_remove(FSHandle *fs, char *path) {
+//     Inode *inode = resolve_path(fs, path);
+//     if (inode) inode_data_remove(fs, inode);
+// } // Unnneded?
 
-static int file_data_append(FSHandle *fs, char *path, char *append_data) {
-    Inode *inode = resolve_path(fs, path);
-    return inode_data_append(fs, inode, append_data);
-}
+// static int file_data_append(FSHandle *fs, char *path, char *append_data) {
+//     Inode *inode = resolve_path(fs, path);
+//     return inode_data_append(fs, inode, append_data);
+// } // Unneded?
 
 // Resolves the given file or directory path and returns its associated inode.
 // Author: Joel Keller
@@ -846,7 +847,6 @@ int __myfs_rmdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
     FSHandle *fs;       // Handle to the file system
-    Inode *inode;       // Inode for the given path
 
     // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
     if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1;
@@ -1155,7 +1155,6 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // Set data index and num bytes to read based on offset param
     cpy_buf += offset;
-    int diff = cpy_buf - full_buf;
     cpy_size = data_size - offset;
 
     // Copy cpy_size bytes into buf

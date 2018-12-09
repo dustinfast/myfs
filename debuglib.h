@@ -70,11 +70,11 @@ static void init_files_debug(FSHandle *fs) {
     printf("\n--- Initializing test files/folders ---");
 
     // Init test dirs/files
-    Inode *dir1 = dir_new(fs, fs_rootnode_get(fs), "dir1");
-    Inode *file1 = file_new(fs, "/dir1", "file1", "hello from file 1", 17);
-    Inode *file2 = file_new(fs, "/dir1", "file2", "hello from file 2", 17);
-    // Inode *file3 = file_new(fs, "/dir1", "file3", "hello from file 3", 17);
-    // Inode *file4 = file_new(fs, "/dir1", "file4", "hello from file 4", 17);
+    dir_new(fs, fs_rootnode_get(fs), "dir1");
+    file_new(fs, "/dir1", "file1", "hello from file 1", 17);
+    file_new(fs, "/dir1", "file2", "hello from file 2", 17);
+    // file_new(fs, "/dir1", "file3", "hello from file 3", 17);
+    // file_new(fs, "/dir1", "file4", "hello from file 4", 17);
     
     // Init file 5 consisting of a lg string of a's & b's & terminated w/ 'c'.
     size_t data_sz = DATAFIELD_SZ_B * 1.25;
@@ -88,7 +88,13 @@ static void init_files_debug(FSHandle *fs) {
         else
             *c = 'b';
     }
-    Inode *file5 = file_new(fs, "/", "file5", lg_data, data_sz);
+    file_new(fs, "/", "file5", lg_data, data_sz);
+}
+
+// Helper to resolve pathand return data for a file
+static size_t file_data_get(FSHandle *fs, const char *path, char *buf) {
+    Inode *inode = resolve_path(fs, path);
+    return inode_data_get(fs, inode, buf);
 }
 
 
@@ -108,7 +114,7 @@ int main()
     FSHandle *fs = fs_init(fsptr, fssize);
 
     printf("\n");
-    // print_fs_debug(fs);      // Display fs properties
+    print_fs_debug(fs);      // Display fs properties
 
     init_files_debug(fs);       // Init test files and dirs for debugging
 
@@ -119,13 +125,10 @@ int main()
     char path_dir1[] =  "/dir1";
     char path_file1[] =  "/dir1/file1";
     char path_file2[] =  "/dir1/file2";
-    char path_file3[] =  "/dir1/file3";
-    char path_file4[] =  "/dir1/file4";
-    char path_file5[] =  "/file5";
 
     // Root dir
     printf("\nExamining / ");
-    print_inode_debug(fs, fs_rootnode_get(fs));
+    print_inode_debug(fs, resolve_path(fs, path_root));
     
     // Dir 1
     printf("\nExamining /dir1 ");
@@ -230,7 +233,7 @@ int main()
     print_result_debug("open_implem(FAIL/NOEXIST):\n", r, -1);
 
     // readdir_implem
-    char ***namesptr;
+    char ***namesptr = NULL;
     r = __myfs_readdir_implem(fsptr, fssize, &e, filepath, namesptr);
     print_result_debug("readdir_implem(FAIL/NOTDIR):\n", r, -1);
 

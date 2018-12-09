@@ -147,8 +147,8 @@ static MemHead* memblock_nextfree(FSHandle *fs) {
 // Returns the number of free memblocks in the filesystem
 static size_t memblocks_numfree(FSHandle *fs) {
     MemHead *memblock = fs->mem_seg;
-    size_t blks_start = (lui)fs->mem_seg;
-    size_t blks_end = blks_start + (fs->num_memblocks * ((lui)MEMBLOCK_SZ_B));
+    // size_t blks_start = (lui)fs->mem_seg;
+    // size_t blks_end = blks_start + (fs->num_memblocks * ((lui)MEMBLOCK_SZ_B));
     size_t num_memblocks = fs->num_memblocks;
     size_t num_free = 0;
 
