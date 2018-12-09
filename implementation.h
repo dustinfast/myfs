@@ -10,7 +10,7 @@
 /* Begin Configurables  -------------------------------------------------- */
 
 
-#define FS_BLOCK_SZ_KB (1)                 // TODO: Total kbs of each memory block
+#define FS_BLOCK_SZ_KB (4)                 // TODO: Total kbs of each memory block
 #define NAME_MAXLEN (256)                  // Max length of any filename
 #define BLOCKS_TO_INODES (1)               // Num of mem blocks to each inode
 
@@ -28,38 +28,38 @@
 // Inode -
 // An Inode represents the meta-data of a file or folder.
 typedef struct Inode { 
-    char name[NAME_MAXLEN];   // The file/folder's label
-    int *is_dir;                // if 1, node represents a dir, else a file
-    int *subdirs;               // Subdir count (unused if not is_dir)
-    size_t *file_size_b;        // File's/folder's data size, in bytes
-    struct timespec *last_acc;  // File/folder last access time
-    struct timespec *last_mod;  // File/Folder last modified time
-    size_t *offset_firstblk;    // Byte offset from fsptr to file/folder's 1st
-                                // memblock, or 0 if inode is free/unused
+    char name[NAME_MAXLEN];             // Inode's label (file/folder name)
+    int *is_dir;                        // if 1, is a dir, else a file
+    int *subdirs;                       // Subdir count (unused if not is_dir)
+    size_t *file_size_b;                // File's/folder's data size, in bytes
+    struct timespec *last_acc;          // File/folder last access time
+    struct timespec *last_mod;          // File/Folder last modified time
+    size_t *offset_firstblk;            // Byte offset from fsptr to 1st
+                                        // memblock, or 0 if inode is unused
 } Inode;
 
 // Memory block header -
 // Each file/dir uses one or more memory blocks.
 typedef struct MemHead {
-    int *not_free;          // Denotes memory block in use by a file (1 = used)
-    size_t *data_size_b;    // Size of data field occupied
-    size_t *offset_nextblk; // Bytes offset (from fsptr) to next block of 
-                            // file's data if any, else 0
+    int *not_free;                      // Denotes memblock in use (1 = used)
+    size_t *data_size_b;                // Size of data field occupied
+    size_t *offset_nextblk;             // Bytes offset (from fsptr) to next
+                                        // memblock, if any (else 0)
 } MemHead;
 
 // Top-level filesystem handle
 // A file system is a list of inodes where each knows the offset of the first 
 // memory block for that file/dir.
 typedef struct FSHandle {
-    uint32_t magic;             // "Magic" number, for denoting mem ini'd
-    size_t size_b;              // Fs sz from inode seg to end of mem blocks
-    size_t num_inodes;          // Num inodes the file system contains
-    size_t num_memblocks;       // Num memory blocks the file system contains
-    struct Inode *inode_seg;    // Ptr to start of inodes segment
-    struct MemHead *mem_seg;    // Ptr to start of mem blocks segment
+    uint32_t magic;                     // Magic number for denoting mem init
+    size_t size_b;                      // Bytes from inode seg to memblocks end
+    size_t num_inodes;                  // Num inodes the file system contains
+    size_t num_memblocks;               // Num memory blocks the fs contains
+    struct Inode *inode_seg;            // Ptr to start of inodes segment
+    struct MemHead *mem_seg;            // Ptr to start of mem blocks segment
 } FSHandle;
 
-typedef long unsigned int lui; // For shorthand convenience in casting
+typedef long unsigned int lui;          // For shorthand convenience in casting
 
 // Size in bytes of the filesystem's structs (above)
 #define ST_SZ_INODE sizeof(Inode)
@@ -81,6 +81,7 @@ typedef long unsigned int lui; // For shorthand convenience in casting
 
 /* End FS Definitions ----------------------------------------------------- */
 /* Begin ptr/bytes helpers ------------------------------------------------ */
+
 
 // Returns a ptr to a mem address in the file system given an offset.
 static void* ptr_from_offset(FSHandle *fs, size_t *offset) {
@@ -116,6 +117,7 @@ int is_kb_blockaligned(size_t kbs_size, size_t block_sz) {
 
 /* End ptr/bytes helpers -------------------------------------------------- */
 /* Begin Memblock helpers ------------------------------------------------- */
+
 
 // Returns a ptr to a memory block's data field.
 static void* memblock_datafield(FSHandle *fs, MemHead *memblock){
@@ -163,11 +165,10 @@ static size_t memblocks_numfree(FSHandle *fs) {
     return num_free;
 }
 
-// Populates buf with a string representing the given memblock's data,
-// plus the data of any subsequent MemBlocks extending it.
-// Returns: The size of the data at buf.
-// NOTE: buf should be pre-sized with malloc(inode->file_size_b)
-// Author: Dustin Fast & Brooks Woods
+// Populates buf with the given memblock's data and the data of any subsequent 
+// MemBlocks extending it. Returns: The size of the data at buf.
+// NOTE: buf must be pre-allocated - ex: malloc(inode->file_size_b)
+// Author: Brooks Woods & Dustin Fast
 size_t memblock_data_get(FSHandle *fs, MemHead *memhead, const char *buf) {
     MemHead *memblock = (MemHead*) memhead;
     size_t total_sz = 0;
@@ -194,7 +195,7 @@ size_t memblock_data_get(FSHandle *fs, MemHead *memhead, const char *buf) {
         // If on the last (or only) memblock of the sequence, stop iterating
         if (memblock->offset_nextblk == 0) 
             break;
-        // Else, start operating on the next memblock in the sequence
+        // Else, go to the next memblock in the sequence
         else
             memblock = (MemHead*)ptr_from_offset(fs, memblock->offset_nextblk);
     }
@@ -241,18 +242,12 @@ static int inode_name_isvalid(char *name) {
 
     for (char *c = name; *c != '\0'; c++) {
         len++;
-
-        // Check for over max length
-        if (len > NAME_MAXLEN) return 0;
-
-        // Check for illegal chars (see inode_name_charvalid() for details)
-        if (!inode_name_charvalid(*c)) return 0;  
+        if (len > NAME_MAXLEN) return 0;            // Check for over max length
+        if (!inode_name_charvalid(*c)) return 0;    // Check for illegal chars
     }
 
-    if (!len)
-        return 0;  // Zero length is invalid
-
-    return 1;      // Valid
+    if (!len) return 0;  // Zero length is invalid
+    return 1;            // Valid
 }
 
 // Sets the file or directory name (of length sz) for the given inode.
@@ -261,7 +256,6 @@ static int inode_name_isvalid(char *name) {
 int inode_name_set(Inode *inode, char *name) {
     if (!inode_name_isvalid(name))
         return 0;
-
     strcpy(inode->name, name); 
     return 1;
 }
@@ -273,7 +267,7 @@ static MemHead* inode_firstmemblock(FSHandle *fs, Inode *inode) {
 
 // Returns 1 if the given inode is free, else returns 0.
 static int inode_isfree(Inode *inode) {
-    if (inode->offset_firstblk == 0)  // TODO: Ensure this doesn't cause issues
+    if (inode->offset_firstblk == 0)
         return 1;
     return 0;
 }
@@ -283,13 +277,12 @@ static Inode* inode_nextfree(FSHandle *fs) {
     Inode *inode = fs->inode_seg;
     size_t num_inodes = fs->num_inodes;
 
-    for (int i = 0; i < num_inodes; i++)
-    {
+    for (int i = 0; i < num_inodes; i++) {
         if (inode_isfree(inode))
             return inode;
-
         inode++;
     }
+
     return NULL;
 }
 
@@ -302,8 +295,7 @@ static size_t inodes_numfree(FSHandle *fs) {
     for (int i = 0; i < num_inodes; i++) {
         if (inode_isfree(inode))
             num_free++;
-
-        inode++; // ptr arithmetic
+        inode++;
     }
     return num_free;
 }
@@ -313,7 +305,7 @@ static size_t inodes_numfree(FSHandle *fs) {
 /* Begin String Helpers -------------------------------------------------- */
 
 
-// Returns a size_t denoting the given null-terminated string's length.
+// Returns the length  of the given null-terminated char array
 size_t str_len(char *arr) {
     int length = 0;
     for (char *c = arr; *c != '\0'; c++)
@@ -322,25 +314,23 @@ size_t str_len(char *arr) {
     return length;
 }
 
-// Returns an index to the name element of the given path. Additionaly, pathlen
-// is set to the size in bytes of the path.
-// Example: path ='/dira/dirb/file1' returns 11
+// Returns an index to the name element of the given path. Additionaly, sets
+// pathlen to the size in bytes of the path. Ex: path ='/dir1/file1' returns 6
 static size_t str_name_offset(const char *path, size_t *pathlen) {
     char *start, *token, *next, *name;
 
-    start = next = strdup(path);  // Duplicate path so we can manipulate it
-    *pathlen = str_len(next);
-    next++;                       // Skip initial seperator
+    start = next = strdup(path);    // Duplicate path so we can manipulate it
+    *pathlen = str_len(next);       // Set pathlen for caller
+    next++;                         // Skip initial seperator
     
-    while ((token = strsep(&next, FS_PATH_SEP))) {
+    while ((token = strsep(&next, FS_PATH_SEP)))
         if (!next)
             name = token;
-    }
 
-    size_t ret = name - start; 
+    size_t index = name - start; 
     free(start);
 
-    return ret;
+    return index;
 }
 
 
@@ -364,7 +354,7 @@ static Inode* fs_rootnode_get(FSHandle *fs) {
 static FSHandle* fs_init(void *fsptr, size_t size) {
     // Validate file system size
     if (size < MIN_FS_SZ_B) {
-        printf("ERROR: Received an invalid file system size.\n");
+        printf("ERROR: File system size too small.\n");
         return NULL;
     }
 
@@ -389,7 +379,7 @@ static FSHandle* fs_init(void *fsptr, size_t size) {
     // If first bytes aren't our magic number, format the mem space for the fs
     if (fs->magic != MAGIC_NUM) {
         printf(" INFO: Formatting new filesystem of size %lu bytes.\n", size);
-        printf(" (Start=%lu, end=%lu\n", (lui)fs, (lui)fs + size);
+        // printf(" (Start=%lu, end=%lu\n", (lui)fs, (lui)fs + size); // debug
         
         // Format mem space w/zero-fill
         memset(fsptr, 0, fs_size);

@@ -113,7 +113,7 @@ int main()
     // Init a fs for testing purposes
 
     // Allocate fs space and associate with a filesys handle
-    size_t fssize = kb_to_bytes(32) + ST_SZ_FSHANDLE;
+    size_t fssize = kb_to_bytes(128) + ST_SZ_FSHANDLE;
     void *fsptr = malloc(fssize); 
     FSHandle *fs = fs_init(fsptr, fssize);
 
