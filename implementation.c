@@ -389,17 +389,17 @@ static int dir_remove(FSHandle *fs, const char *path) {
         char *offsetend_ptr = line_start + line_sz;
 
         // Build new parent data without the dir's lookup line
-        char *new_data = malloc(par_data_sz - line_sz);  // freeme?
+        char *new_data = malloc(par_data_sz - line_sz);
         size_t sz1 =  line_start - par_data;
         size_t sz2 = par_data_sz - sz1 - line_sz;
         memcpy(new_data, par_data, sz1);
         memcpy(new_data + sz1, offsetend_ptr, sz2);
         
         // debug
-        printf("Removing dir -\npath: %s\ndirname: %s\n", path, dirname);
-        printf("Parent data (len=%lu): %s \n", par_data_sz, par_data);
-        printf("Remove line (len=%lu): %s", line_sz, rmline);
-        printf("sz1 = %lu, sz2 = %lu\n\n", sz1, sz2);
+        // printf("Removing dir -\npath: %s\ndirname: %s\n", path, dirname);
+        // printf("Parent data (len=%lu): %s \n", par_data_sz, par_data);
+        // printf("Remove line (len=%lu): %s", line_sz, rmline);
+        // printf("sz1 = %lu, sz2 = %lu\n\n", sz1, sz2);
 
         // Update the parent to reflect removal of dir
         inode_data_set(fs, parent, new_data, sz1 + sz2);
@@ -414,13 +414,10 @@ static int dir_remove(FSHandle *fs, const char *path) {
         free(start);
         free(rmline);
         free(dir_name);
-        // if (freeme != NULL)
-        //     free(freeme);
     
         return 1; // Success
 
-    } else
-        return 0; // Fail (bad path)
+    } else return 0; // Fail (bad path)
 }
 
 

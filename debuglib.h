@@ -274,7 +274,7 @@ int main()
     r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/file1", "/file1");
     print_result_debug(rename1, r, 0);
 
-    print_inode_debug(fs, resolve_path(fs, "/"));
+    print_inode_debug(fs, resolve_path(fs, "/dir1"));
 
     // rename (dir) (Working, but does not remove old entry from parent lookup table
     // print_inode_debug(fs, resolve_path(fs, "/dir1/dir2/"));
