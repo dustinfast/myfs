@@ -10,7 +10,7 @@
 /* Begin Configurables  -------------------------------------------------- */
 
 
-#define FS_BLOCK_SZ_KB (4)                 // TODO: Total kbs of each memory block
+#define FS_BLOCK_SZ_KB (4)                 // Total kbs of each memory block
 #define NAME_MAXLEN (256)                  // Max length of any filename
 #define BLOCKS_TO_INODES (1)               // Num of mem blocks to each inode
 
@@ -156,8 +156,8 @@ static size_t memblocks_numfree(FSHandle *fs) {
 
     for (int i = 0; i < num_memblocks; i++)
     {
-        // TODO: FIX if (memblock_isfree(memblock))
-        num_free++;
+        if (memblock_isfree(memblock))
+            num_free++;
 
         memblock = (MemHead*)((size_t)memblock + MEMBLOCK_SZ_B);
     }
@@ -251,7 +251,6 @@ static int inode_name_isvalid(char *name) {
 
 // Sets the file or directory name (of length sz) for the given inode.
 // Returns: 1 on success, else 0 for invalid filename)
-// TODO: Add functionality to update parent dir if inode already had a name.
 int inode_name_set(Inode *inode, char *name) {
     if (!inode_name_isvalid(name))
         return 0;

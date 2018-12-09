@@ -427,11 +427,6 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
         return NULL;
     }
 
-    if (memblocks_numfree(fs) <  data_sz / DATAFIELD_SZ_B) {
-        printf("ERROR: Insufficient free memblocks for new file %s\n", fname);
-        return NULL;
-    }
-
     Inode *inode = inode_nextfree(fs);
     if (!inode) {
         printf("ERROR: Failed getting free inode for new file %s\n", fname);
@@ -1259,6 +1254,7 @@ int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
     if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
 
+    // TODO: Segfaults
     size_t blocks_free = memblocks_numfree(fs);
     stbuf->f_bsize = DATAFIELD_SZ_B;
     stbuf->f_blocks = 0;
@@ -1273,8 +1269,7 @@ int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
 /* Begin DEBUG  ----------------------------------------------------------- */
 
 
-# include "debuglib.h"  // Includes main() and debug output functions
-                        // For dev use only - Comment out for prod
+// # include "debuglib.h"  // For dev use - includes main() & debug output funcs
 
 
 /* End DEBUG  ------------------------------------------------------------- */
