@@ -3,10 +3,10 @@
 
 ## Contributions
 
-__Dustin Fast__: implementation.c and implementation.h
-__Joel Keller__: implementation.c
+__Dustin Fast__
+__Joel Keller__
 __Christoph Lauter__: myfs.c and implementation.c skeleton
-__Brooks Woods__: implementation.c
+__Brooks Woods__
 
 ## File Hierarchy
 * **implemnetation.c**: Filesystem emulations and helper functions

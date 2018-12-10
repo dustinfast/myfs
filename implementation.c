@@ -1224,6 +1224,7 @@ int __myfs_utimens_implem(void *fsptr, size_t fssize, int *errnoptr,
     return 0;
 }
 
+/* -- __myfs_statfs_implem -- */
 /* Implements an emulation of the statfs system call on the filesystem 
    of size fssize pointed to by fsptr.
 
@@ -1254,7 +1255,6 @@ int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
     // Bind fs handle (sets erronoptr = EFAULT and returns -1 on fail)
     if ((!(fs = fs_handle(fsptr, fssize, errnoptr)))) return -1; 
 
-    // TODO: Segfaults
     size_t blocks_free = memblocks_numfree(fs);
     stbuf->f_bsize = DATAFIELD_SZ_B;
     stbuf->f_blocks = 0;

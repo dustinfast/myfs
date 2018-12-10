@@ -148,21 +148,40 @@ static MemHead* memblock_nextfree(FSHandle *fs) {
 
 // Returns the number of free memblocks in the filesystem
 static size_t memblocks_numfree(FSHandle *fs) {
-    MemHead *memblock = fs->mem_seg;
-    // size_t blks_start = (lui)fs->mem_seg;
-    // size_t blks_end = blks_start + (fs->num_memblocks * ((lui)MEMBLOCK_SZ_B));
-    size_t num_memblocks = fs->num_memblocks;
-    size_t num_free = 0;
+    Inode *inode = fs->inode_seg;
+    size_t num_blocks = fs->num_memblocks;
+    size_t blocks_used = 0;
+    size_t node_bytes = 0;
 
-    for (int i = 0; i < num_memblocks; i++)
-    {
-        if (memblock_isfree(memblock))
-            num_free++;
+    // Iterate each inode and determine number of blocks being used
+    for (int i = 0; i < fs->num_inodes; i++) {
+        node_bytes = *(size_t*)(&inode->file_size_b);
 
-        memblock = (MemHead*)((size_t)memblock + MEMBLOCK_SZ_B);
+        if (node_bytes % DATAFIELD_SZ_B > 0)
+            blocks_used += 1;
+        blocks_used += node_bytes / DATAFIELD_SZ_B; // Note: integer division
+
+        inode++;
     }
 
-    return num_free;
+    return num_blocks - blocks_used;
+
+
+    // MemHead *memblock = fs->mem_seg;
+    // // size_t blks_start = (lui)fs->mem_seg;
+    // // size_t blks_end = blks_start + (fs->num_memblocks * ((lui)MEMBLOCK_SZ_B));
+    // size_t num_memblocks = fs->num_memblocks;
+    // size_t num_free = 0;
+
+    // for (int i = 0; i < num_memblocks; i++)
+    // {
+    //     if (memblock_isfree(memblock))
+    //         num_free++;
+
+    //     memblock = (MemHead*)((size_t)memblock + MEMBLOCK_SZ_B);
+    // }
+
+    // return num_free;
 }
 
 // Populates buf with the given memblock's data and the data of any subsequent 
@@ -273,9 +292,8 @@ static int inode_isfree(Inode *inode) {
 // Returns the first free inode in the given filesystem
 static Inode* inode_nextfree(FSHandle *fs) {
     Inode *inode = fs->inode_seg;
-    size_t num_inodes = fs->num_inodes;
 
-    for (int i = 0; i < num_inodes; i++) {
+    for (int i = 0; i < fs->num_inodes; i++) {
         if (inode_isfree(inode))
             return inode;
         inode++;
