@@ -4,6 +4,8 @@ A FUSE (Filesystem in user space) based file system.
 
 ## Contributors
 
+Dustin Fast, Joel Keller, Brooks Woods
+
 ![Contributors](https://github.com/dustinfast/myfs/raw/master/img/contributors.png "Contributors")
 
 ## Usage
@@ -13,33 +15,34 @@ Compile with:
 gcc myfs.c -Wall implementation.c `pkg-config fuse --cflags --libs` -o myfs
 ```
 
-To mount:
-(MOUNT_PATH is an empty directory on your existing file system.)
+To mount:  
 
 ``` sh
       # Mount (w/no backup file)
-      ./myfs MOUNT_PATH -f
+      ./myfs PATH -f
     
       # Mount (w/backup & restore from file)
-      ./myfs --backupfile=test.myfs MOUNT_PATH -f
+      ./myfs --backupfile=test.myfs PATH -f
 
       # To unmount (from a seperate terminal)
       fusermount -u MOUNT_MOUT
 ```
+
+Where PATH is an empty directory on your existing file system.)
     
-After mounting, open a new terminal and navigate to the filesystem's root at MOUNT_PATH.
+After mounting, open a new terminal and navigate to the filesystem's root at PATH.
 
 ## Implementation
 
 
-### File System Design
+### Design
 
-![Design](https://github.com/dustinfast/myfs/raw/master/img/fs_design.png "Design")
+![Design](https://github.com/dustinfast/myfs/raw/master/img/fs_design.jpg "Design")
 Design By: Dustin Fast
     
 
 
-### Directory 
+### Directory Lookup Table Format
     Directory file data field structure:
         Ex: "dir1:offset\ndir2:offset\nfile1:offset"
         Ex: "file1:offset\nfile2:offset"
