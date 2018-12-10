@@ -280,8 +280,7 @@ static int inode_isdir(Inode *inode) {
 // Returns 1 unless ch is one of the following illegal naming chars:
 // {, }, |, ~, DEL, :, /, \, and comma char
 static int inode_name_charvalid(char ch) {
-    return  (!(ch < 32 || ch == 44 || 
-             ch == 95 || ch  == 47 || ch == 58 || ch > 122));
+    return  (!(ch < 32 || ch == 44 || ch  == 47 || ch == 58 || ch > 122));
 }
 
 // Returns 1 iff name is legal ascii chars and within max length, else 0.
@@ -1306,18 +1305,6 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     Inode *from_child = fs_pathresolve(fs, from, errnoptr);
     Inode *to_child = fs_pathresolve(fs, to, errnoptr);
-    
-    // Debug
-    // printf("\nRenaming: %s\n", from);
-    // printf("To: %s\n", to);
-    // printf("from_idx: %lu\n", from_idx);
-    // printf("from_len: %lu\n", from_len);
-    // printf("to_idx: %lu\n", to_idx);
-    // printf("to_len: %lu\n", to_len);
-    // printf("From path: %s\n", from_path);
-    // printf("To path: %s\n", to_path);
-    // printf("From name: %s\n",from_name);
-    // printf("To name: %s\n", to_name);
     
     free(from_name);
     free(from_path);

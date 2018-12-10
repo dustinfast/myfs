@@ -56,7 +56,7 @@ For example: `dir1:offset\ndir2:offset\nfile1:offset` denotes a directory having
 |
 +--- dir2
 ```
-        
+
 ### Design Decisions
 The design was chosen to meet the following requirements:
 
@@ -122,6 +122,9 @@ The file system was then **remounted** with `./myfs --backupfile=test.myfs ~/fus
 | `rm file2` | `NONE` | PASS |
 | `rm file1` |  `NONE`    |  PASS  |
 | `ls` | `NONE` | PASS |
+| `wget https://sample-videos.com/video123/mp4/360/big_buck_bunny_360p_30mb.mp4` | `... Saving to 'big_buck_bunny_360p_30mb.mp4'... Success.` | PASS |
+| `xdgopen big_buck_bunny_360p_30mb.mp4` | **video begins playing** | PASS |
+| `rm big_buck_bunny_360p_30mb.mp4` | **video halts** | FAIL |
 | `cd ../` |  `NONE` |  PASS    |
 | `fusermount - u fuse-mnt` | `NONE` | PASS |
 
