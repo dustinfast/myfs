@@ -4,6 +4,8 @@ A FUSE (Filesystem in user space) based file system.
 
 ## Contributors
 
+![Contributors](https://github.com/dustinfast/myfs/raw/master/img/contributors.png "Contributors")
+
 ## Usage
 
 Compile with:
@@ -32,8 +34,8 @@ After mounting, open a new terminal and navigate to the filesystem's root at MOU
 
 ### File System Design
 
-
-Author: Dustin Fast
+![Design](https://github.com/dustinfast/myfs/raw/master/img/fs_design.png "Design")
+Design By: Dustin Fast
     
 
 
@@ -64,7 +66,14 @@ These goals led to the following design decisions -
 
 ## Test Results
 
-Testing was performed on Debian 4.9 and Ubunutu 18. 
+Dustin performed by: Dustin Fast
+
+Testing was performed on Debian 4.9 and Ubunutu 18 to verify the following -
+
+
+| Test | Result | TTI w/our Implementation | TTI w/ stdlib Implementation |
+| --------------------------------- | ---------- | --------- | -------- |
+
 
 
 
