@@ -6,7 +6,7 @@ A FUSE (Filesystem in user space) based file system.
 
 Dustin Fast, Joel Keller, Brooks Woods
 
-<img src="https://github.com/dustinfast/myfs/raw/master/img/contributors.png" width="300">
+<img src="https://github.com/dustinfast/myfs/raw/master/img/contributors.png" width="400">
 
 ## Usage
 
