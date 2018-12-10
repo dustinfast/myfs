@@ -37,7 +37,7 @@ After mounting, open a new terminal and navigate to the filesystem's root at PAT
 
 ### Design
 
-<img src="https://github.com/dustinfast/myfs/raw/master/img/fs_design.jpg" width="500">
+<img src="https://github.com/dustinfast/myfs/raw/master/img/fs_design.jpg" width="600">
 Design by: Dustin Fast
     
 
