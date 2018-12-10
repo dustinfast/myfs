@@ -177,107 +177,107 @@ int main()
     int r;
 
     // getattr
-    // struct stat stbuf;
-    // r = __myfs_getattr_implem(fsptr, fssize, &e, 0, 0, filepath, &stbuf);
-    // print_result_debug("getattr_implem(SUCCESS):\n", r, 0);
+    struct stat stbuf;
+    r = __myfs_getattr_implem(fsptr, fssize, &e, 0, 0, filepath, &stbuf);
+    print_result_debug("getattr_implem(SUCCESS):\n", r, 0);
 
-    // r = __myfs_getattr_implem(fsptr, fssize, &e, 0, 0, nofilepath, &stbuf);
-    // print_result_debug( "getattr_implem(FAIL/NOEXIST):\n", r, -1);
+    r = __myfs_getattr_implem(fsptr, fssize, &e, 0, 0, nofilepath, &stbuf);
+    print_result_debug( "getattr_implem(FAIL/NOEXIST):\n", r, -1);
 
-    // // mknod
-    // r = __myfs_mknod_implem(fsptr, fssize, &e, newfilepath);
-    // print_result_debug("mknod_implem(SUCCESS):\n", r, 0);
+    // mknod
+    r = __myfs_mknod_implem(fsptr, fssize, &e, newfilepath);
+    print_result_debug("mknod_implem(SUCCESS):\n", r, 0);
 
-    // r = __myfs_mknod_implem(fsptr, fssize, &e, newfilepath);
-    // print_result_debug("mknod_implem(FAIL/EXISTS):\n", r, -1);
+    r = __myfs_mknod_implem(fsptr, fssize, &e, newfilepath);
+    print_result_debug("mknod_implem(FAIL/EXISTS):\n", r, -1);
 
-    // // unlink
-    // r = __myfs_unlink_implem(fsptr, fssize, &e, newfilepath);
-    // print_result_debug("unlink_implem(SUCCESS):\n", r, 0);
+    // unlink
+    r = __myfs_unlink_implem(fsptr, fssize, &e, newfilepath);
+    print_result_debug("unlink_implem(SUCCESS):\n", r, 0);
     
-    // r = __myfs_unlink_implem(fsptr, fssize, &e, newfilepath);
-    // print_result_debug("unlink_implem(FAIL/NOEXIST):\n", r, -1);
+    r = __myfs_unlink_implem(fsptr, fssize, &e, newfilepath);
+    print_result_debug("unlink_implem(FAIL/NOEXIST):\n", r, -1);
 
-    // // mkdir
-    // r = __myfs_mkdir_implem(fsptr, fssize, &e, newdirpath);
-    // print_result_debug("mkdir_implem(SUCCESS):\n", r, 0);
+    // mkdir
+    r = __myfs_mkdir_implem(fsptr, fssize, &e, newdirpath);
+    print_result_debug("mkdir_implem(SUCCESS):\n", r, 0);
 
-    // r = __myfs_mkdir_implem(fsptr, fssize, &e, newdirpath);
-    // print_result_debug("mkdir_implem(FAIL/EXISTS):\n", r, -1);
+    r = __myfs_mkdir_implem(fsptr, fssize, &e, newdirpath);
+    print_result_debug("mkdir_implem(FAIL/EXISTS):\n", r, -1);
 
-    // // rmdir
-    // r = __myfs_rmdir_implem(fsptr, fssize, &e, newdirpath);
-    // print_result_debug("rmdir_implem(SUCCESS):\n", r, 0);
+    // rmdir
+    r = __myfs_rmdir_implem(fsptr, fssize, &e, newdirpath);
+    print_result_debug("rmdir_implem(SUCCESS):\n", r, 0);
 
-    // r = __myfs_rmdir_implem(fsptr, fssize, &e, dirpath);
-    // print_result_debug("rmdir_implem(FAIL/NOTEMPTY):\n", r, -1);
+    r = __myfs_rmdir_implem(fsptr, fssize, &e, dirpath);
+    print_result_debug("rmdir_implem(FAIL/NOTEMPTY):\n", r, -1);
 
-    // r = __myfs_rmdir_implem(fsptr, fssize, &e, filepath);
-    // print_result_debug("rmdir_implem(FAIL/ISNOTDIR):\n", r, -1);
+    r = __myfs_rmdir_implem(fsptr, fssize, &e, filepath);
+    print_result_debug("rmdir_implem(FAIL/ISNOTDIR):\n", r, -1);
 
-    // // utims
-    // const struct timespec ts[2];
-    // r = __myfs_utimens_implem(fsptr, fssize, &e, filepath, ts);
-    // print_result_debug("utims_implem(SUCCESS):\n", r, 0);
+    // utims
+    const struct timespec ts[2];
+    r = __myfs_utimens_implem(fsptr, fssize, &e, filepath, ts);
+    print_result_debug("utims_implem(SUCCESS):\n", r, 0);
 
-    // r = __myfs_utimens_implem(fsptr, fssize, &e, badpath, ts);
-    // print_result_debug("utims_implem(FAIL/BADPATH):\n", r, -1);
+    r = __myfs_utimens_implem(fsptr, fssize, &e, badpath, ts);
+    print_result_debug("utims_implem(FAIL/BADPATH):\n", r, -1);
     
-    // // statfs
-    // struct statvfs stvbuf;
-    // r = __myfs_statfs_implem(fsptr, fssize, &e, &stvbuf);
-    // print_result_debug("statfs_implem(SUCCESS):\n", r, 0);
+    // statfs
+    struct statvfs stvbuf;
+    r = __myfs_statfs_implem(fsptr, fssize, &e, &stvbuf);
+    print_result_debug("statfs_implem(SUCCESS):\n", r, 0);
 
     // open
-    // r = __myfs_open_implem(fsptr, fssize, &e, filepath);
-    // print_result_debug("open_implem(SUCCESS):\n", r, 0);
+    r = __myfs_open_implem(fsptr, fssize, &e, filepath);
+    print_result_debug("open_implem(SUCCESS):\n", r, 0);
 
-    // r = __myfs_open_implem(fsptr, fssize, &e, nofilepath);
-    // print_result_debug("open_implem(FAIL/NOEXIST):\n", r, -1);
+    r = __myfs_open_implem(fsptr, fssize, &e, nofilepath);
+    print_result_debug("open_implem(FAIL/NOEXIST):\n", r, -1);
 
     // readdir_implem
     char **namesptr;
     r = __myfs_readdir_implem(fsptr, fssize, &e, dirpath, &namesptr);
     print_result_debug("readdir_implem('file1, file2, dir2'):\n", r, 3);
+
+    r = __myfs_readdir_implem(fsptr, fssize, &e, filepath, &namesptr);
+    print_result_debug("readdir_implem(FAIL/ISNOTDIR):\n", r, -1);
     free(namesptr);
 
-    // r = __myfs_readdir_implem(fsptr, fssize, &e, filepath, namesptr);
-    // print_result_debug("readdir_implem(FAIL/ISNOTDIR):\n", r, -1);
+    // rename (file)
+    r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/file2", "/file2");
+    print_result_debug("rename_implem(FILE-SUCCESS):\n", r, 0);
 
-    // // rename (file)
-    // r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/file2", "/file2");
-    // print_result_debug("rename_implem(FILE-SUCCESS):\n", r, 0);
+    // rename (dir)
+    r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/dir2", "/dir2");
+    print_result_debug("rename_implem(DIREMPTY-SUCCESS):\n", r, 0);
 
-    // // rename (dir)
-    // r = __myfs_rename_implem(fsptr, fssize, &e, "/dir1/dir2", "/dir2");
-    // print_result_debug("rename_implem(DIREMPTY-SUCCESS):\n", r, 0);
+    r = __myfs_rename_implem(fsptr, fssize, &e, "/dir2", "/dir1/dir2");
+    print_result_debug("rename_implem(DIRNOTEMPTY-SUCCESS):\n", r, 0);
 
-    // r = __myfs_rename_implem(fsptr, fssize, &e, "/dir2", "/dir1/dir2");
-    // print_result_debug("rename_implem(DIRNOTEMPTY-SUCCESS):\n", r, 0);
+    // read
+    printf("read_implem('hello from file 2'):\n");
+    buf = malloc(17);
+    r = __myfs_read_implem(fsptr, fssize, &e, filepath, buf, 17, 0);
+    (memcmp(buf, "hello from file 1", 17) == 0) ? printf("PASS") : printf("FAIL");    
+    free(buf);
 
-    // // read
-    // printf("read_implem('hello from file 2'):\n");
-    // buf = malloc(17);
-    // r = __myfs_read_implem(fsptr, fssize, &e, filepath, buf, 17, 0);
-    // (memcmp(buf, "hello from file 1", 17) == 0) ? printf("PASS") : printf("FAIL");    
-    // free(buf);
+    // write
+    printf("\nwrite_implem('hello from test write'):\n");
+    r = __myfs_write_implem(
+        fsptr, fssize, &e, filepath, "test write", 10, 11);
+    buf = malloc(1);
+    debug_file_data_get(fs, filepath, buf);
+    (memcmp(buf, "hello from test write", 21) == 0) ? printf("PASS") : printf("FAIL");
+    free(buf);
 
-    // // write
-    // printf("\nwrite_implem('hello from test write'):\n");
-    // r = __myfs_write_implem(
-    //     fsptr, fssize, &e, filepath, "test write", 10, 11);
-    // buf = malloc(1);
-    // debug_file_data_get(fs, filepath, buf);
-    // (memcmp(buf, "hello from test write", 21) == 0) ? printf("PASS") : printf("FAIL");
-    // free(buf);
-
-    // // truncate
-    // printf("\ntruncate_implem('hello'):\n");
-    // r = __myfs_truncate_implem(fsptr, fssize, &e, filepath, 5);
-    // buf = malloc(1);
-    // debug_file_data_get(fs, filepath, buf);
-    // (memcmp(buf, "hello", 5) == 0) ? printf("PASS") : printf("FAIL");
-    // free(buf);
+    // truncate
+    printf("\ntruncate_implem('hello'):\n");
+    r = __myfs_truncate_implem(fsptr, fssize, &e, filepath, 5);
+    buf = malloc(1);
+    debug_file_data_get(fs, filepath, buf);
+    (memcmp(buf, "hello", 5) == 0) ? printf("PASS") : printf("FAIL");
+    free(buf);
 
 
     /////////////////////////////////////////////////////////////////////////

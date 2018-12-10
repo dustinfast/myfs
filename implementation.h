@@ -165,23 +165,6 @@ static size_t memblocks_numfree(FSHandle *fs) {
     }
 
     return num_blocks - blocks_used;
-
-
-    // MemHead *memblock = fs->mem_seg;
-    // // size_t blks_start = (lui)fs->mem_seg;
-    // // size_t blks_end = blks_start + (fs->num_memblocks * ((lui)MEMBLOCK_SZ_B));
-    // size_t num_memblocks = fs->num_memblocks;
-    // size_t num_free = 0;
-
-    // for (int i = 0; i < num_memblocks; i++)
-    // {
-    //     if (memblock_isfree(memblock))
-    //         num_free++;
-
-    //     memblock = (MemHead*)((size_t)memblock + MEMBLOCK_SZ_B);
-    // }
-
-    // return num_free;
 }
 
 // Populates buf with the given memblock's data and the data of any subsequent 
@@ -348,6 +331,18 @@ static size_t str_name_offset(const char *path, size_t *pathlen) {
     free(start);
 
     return index;
+}
+
+// Returns number of digits necessary to represent the given num as a string
+static size_t digits_count(size_t num) {
+    int num_digits = 0;
+
+    while(num != 0) {
+        num_digits++;
+        num /= 10;
+    }
+
+    return num_digits;
 }
 
 

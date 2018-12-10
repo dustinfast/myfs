@@ -286,8 +286,8 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     }
 
     // Get the new inode's offset
-    char offset_str[1000];      // TODO: sz should be based on fs->num_inodes
     size_t offset = offset_from_ptr(fs, newdir_inode);        
+    char offset_str[digits_count(offset) + 1];      
     snprintf(offset_str, sizeof(offset_str), "%lu", offset);
 
     // Build new directory's lookup line Ex: "dirname:offset\n"
@@ -299,10 +299,6 @@ static Inode* dir_new(FSHandle *fs, Inode *inode, char *dirname) {
     strcat(data, FS_DIRDATA_SEP);
     strcat(data, offset_str);
     strcat(data, FS_DIRDATA_END);
-
-    //debug
-    // printf("\n- Adding new dir: %s To: %s\n", dirname, inode->name);
-    // printf("  New lookup line to write: %s\n", data);
 
     // Append the lookup line to the parent dir's existing lookup table
     inode_data_append(fs, inode, data);
@@ -350,8 +346,8 @@ static int child_remove(FSHandle *fs, const char *path) {
     // If valid parent/child...
     if (parent && child) {
         // Denote child's offset, in str form
-        char offset_str[1000];   // TODO: sz should be based on fs->num_inodes
         size_t dir_offset = offset_from_ptr(fs, child);
+        char offset_str[digits_count(dir_offset) + 1];      
         snprintf(offset_str, sizeof(offset_str), "%lu", dir_offset);
 
         // Remove child's lookup line (ex: "filename:offset\n")
@@ -449,10 +445,10 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
     inode->offset_firstblk = (size_t*)offset_firstblk;
     inode_data_set(fs, inode, data, data_sz);
     
-    // Get the new file's inode offset
-    char offset_str[1000];      // TODO: sz should be based on fs->num_inodes
-    size_t offset = offset_from_ptr(fs, inode);               // offset
-    snprintf(offset_str, sizeof(offset_str), "%zu", offset);  // offset to str
+    // Get the new file's inode offset and convert to str
+    size_t offset = offset_from_ptr(fs, inode);
+    char offset_str[digits_count(offset) + 1];      
+    snprintf(offset_str, sizeof(offset_str), "%zu", offset);
 
     // Build new file's lookup line: "filename:offset\n"
     size_t fileline_sz = 0;
@@ -566,6 +562,7 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
     return 0;  // Success  
 }
 
+/* -- __myfs_readdir_implem -- */
 /* Implements an emulation of the readdir system call on the filesystem 
    of size fssize pointed to by fsptr. 
 
@@ -664,15 +661,6 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
             next += len+1;
             *curr++;
         }
-        
-        // debug
-        // curr = *namesptr;
-        // for (int i = 0; i < names_count; i++)
-        // {
-        //     printf("\n%d: %s", i, *curr);
-        //     *curr++;
-        // }
-        // write(fileno(stdout), names, names_len); printf("\n");  // debug
     }
     
     free(data);
@@ -917,8 +905,6 @@ int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
                          const char *from, const char *to) {
-    printf("\nrename start\n");
-
     if (strcmp(from, to) == 0) return 0;  // No work required
     
     FSHandle *fs;           // Handle to the file system
@@ -973,7 +959,7 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
     if(from_child->is_dir) {
         // If destination doesn't exist, create it and move the data
         if(!to_child) {
-            printf("Moving !child\n");
+            // printf("Moving !child\n");
             Inode *dest = dir_new(fs, to_parent, to_name);  // Create dest
             sz = inode_data_get(fs, from_child, data);      // Get dir's data
             inode_data_set(fs, dest, data, sz);             // Copy to dest
@@ -982,7 +968,7 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
         
         // If dest does exist and is empty, simply overwrite the existing data
         else if (to_child->is_dir && !to_child->file_size_b) {
-            printf("moving: to empty existing dir\n");
+            // printf("moving: to empty existing dir\n");
             sz = inode_data_get(fs, from_child, data);      // Get dir's data
             inode_data_set(fs, to_child, data, sz);         // Overwrite dest
             child_remove(fs, from);                         // Remove old dir
@@ -1000,7 +986,7 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // Else, renaming a regular file
     else {
-        printf("\nmoving: file\n");
+        // printf("\nmoving: file\n");
 
         sz = inode_data_get(fs, from_child, data);          // Get file's data
         
@@ -1017,7 +1003,7 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
     free(to_name);
     free(to_path);
 
-    printf("\nrename end\n");
+    // printf("\nrename end\n");
 
     return 0;  // Success
 }
@@ -1309,7 +1295,7 @@ int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
 /* Begin DEBUG  ----------------------------------------------------------- */
 
 
-// # include "debuglib.h"  // For dev use - includes main() & debug output funcs
+# include "debuglib.h"  // For dev use - includes main() & debug output funcs
 
 
 /* End DEBUG  ------------------------------------------------------------- */
