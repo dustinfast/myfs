@@ -6,7 +6,7 @@ A FUSE (Filesystem in user space) based file system.
 
 Dustin Fast, Joel Keller, Brooks Woods
 
-![Contributors](https://github.com/dustinfast/myfs/raw/master/img/contributors.png "Contributors")
+<img src="https://github.com/dustinfast/myfs/raw/master/img/contributors.png" width="200">
 
 ## Usage
 
@@ -126,6 +126,7 @@ The file system was then **remounted** with `./myfs --backupfile=test.myfs ~/fus
 | `cd ../` |  `NONE` |  PASS    |
 | `fusermount - u fuse-mnt` | `NONE` | PASS |
 
+sudo apt-get install mplayer
 Testing performed by: Dustin Fast
 
 #### Report by: Dustin Fast
