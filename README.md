@@ -5,15 +5,14 @@
 
 __Dustin Fast__
 __Joel Keller__
-__Christoph Lauter__: myfs.c and implementation.c skeleton
 __Brooks Woods__
 
 ## File Hierarchy
 * **implemnetation.c**: Filesystem emulations and helper functions
 * **implementation.h**: File system struct defs and generic helper functions
-* **myfs.c**: FUSE interface and helper functions
+* **myfs.c**: FUSE interface and helper functions (aauthor: Christopher Lauter)
 
-### The filesystem:
+## The filesystem:
 
 + File system structure in memory is:
      _ _ _ _ _ _ _ _ _______________________ ___________________________
@@ -41,10 +40,11 @@ __Brooks Woods__
         Simple design vs. Better design.
         Inodes to memblocks/memblocks size
 
-## Assignment Instructions
 
-### The File system must not:
 
+## TODO:
+      Ensure good access/mod times (OK for funcs: )
+      echo "test" >> test.dat give io error when file exists
 
 ### The File system must:
 
@@ -58,7 +58,6 @@ __Brooks Woods__
 Check for memory leaks by running the FUSE process inside valgrind:
 valgrind --leak-check=full ./myfs --backupfile=test.myfs ~/fuse-mnt/ -f
 
-
 Tests:
       truncate -s 1024 foo
       
@@ -69,13 +68,7 @@ Tests:
 
       touch files at different dates (in the past, in the future). Uses utimens_implem
 
-   (11)  Design and implement __myfs_open_implem. The function can 
-         only be tested once __myfs_read_implem and __myfs_write_implem are
-         implemented.
-
-   (12)  Design, implement and test __myfs_read_implem and
-         __myfs_write_implem. You can now write to files and read the data 
-         back:
+   
 
          echo "Hello world" > foo
          echo "Hallo ihr da" >> foo
@@ -86,11 +79,6 @@ Tests:
          information and have the same access and/or modification
          times.
 
-   (13)  Design, implement and test __myfs_unlink_implem. You can now
-         remove files.
-
-   (14)  Design, implement and test __myfs_unlink_implem. You can now
-         remove directories.
 
    (15)  Design, implement and test __myfs_rename_implem. This function
          is extremely complicated to implement. Be sure to cover all 
@@ -100,9 +88,6 @@ Tests:
          using mv on (filled and empty) directories and files onto 
          inexistant and already existing directories and files.
 
-   (16)  Design, implement and test any function that your instructor
-         might have left out from this list. There are 13 functions 
-         __myfs_XXX_implem you have to write.
 
    (17)  Go over all functions again, testing them one-by-one, trying
          to exercise all special conditions (error conditions): set

@@ -510,7 +510,7 @@ static Inode* resolve_path(FSHandle *fs, const char *path) {
 /* End File helpers ------------------------------------------------------- */
 /* Begin emulation functins ----------------------------------------------- */
 
-
+/* -- __myfs_getattr_implem -- */
 /* Implements the "stat" system call on the filesystem 
    Accepts:
       fsptr       : ptr to the fs
@@ -535,7 +535,8 @@ static Inode* resolve_path(FSHandle *fs, const char *path) {
 */
 int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
                           uid_t uid, gid_t gid, const char *path, 
-                          struct stat *stbuf) {                          
+                          struct stat *stbuf) {         
+    printf("\nstart attr\n");                 
     FSHandle *fs = NULL;       // Handle to the file system
     Inode *inode = NULL;       // Inode for the given path
 
@@ -649,18 +650,22 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
         // printf("name: %s\n", name);
         // printf("nameslen: %lu\n", names_len);
         // printf("set 1    : %lu\n", names_len - nlen);
-        // printf("set 2    : %lu\n\n", names_len - 1);
-        // write(fileno(stdout), names, names_len); printf("\n");
+        // printf("set 2    : %lu\n", names_len - 1);
     }
+
 
     if (names_count)
         namesptr = (char ***)names;
 
     free(data);
 
+    write(fileno(stdout), names, names_len); printf("\n");  // debug
+    printf("\ncount: %lu\n", names_count);
+
     return names_count;
 }
 
+/* -- __myfs_mknod_implem -- */
 /* Implements an emulation of the mknod system call for regular files
    on the filesystem of size fssize pointed to by fsptr.
 
@@ -724,6 +729,7 @@ int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
     return 0;       // Success
 }
 
+/* -- __myfs_unlink_implem -- */
 /* Implements an emulation of the unlink system call for regular files
    on the filesystem of size fssize pointed to by fsptr.
 
@@ -755,6 +761,7 @@ int __myfs_unlink_implem(void *fsptr, size_t fssize, int *errnoptr,
     return 0;  // Success
 }
 
+/* -- __myfs_rmdir_implem -- */
 /* Implements an emulation of the rmdir system call on the filesystem 
    of size fssize pointed to by fsptr. 
 
@@ -795,6 +802,7 @@ int __myfs_rmdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     return 0;  // Success
 }
 
+/* -- __myfs_mkdir_implem -- */
 /* Implements an emulation of the mkdir system call on the filesystem 
    of size fssize pointed to by fsptr. 
 
@@ -894,6 +902,8 @@ int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
                          const char *from, const char *to) {
+    printf("\nrename start\n");
+
     if (strcmp(from, to) == 0) return 0;  // No work required
     
     FSHandle *fs;           // Handle to the file system
@@ -946,8 +956,9 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // If renaming a directory, it must either not exist or be an empty dir
     if(from_child->is_dir) {
-        // If the destination doesn't exist, create it and move the data
+        // If destination doesn't exist, create it and move the data
         if(!to_child) {
+            printf("Moving !child\n");
             Inode *dest = dir_new(fs, to_parent, to_name);  // Create dest
             sz = inode_data_get(fs, from_child, data);      // Get dir's data
             inode_data_set(fs, dest, data, sz);             // Copy to dest
@@ -956,6 +967,7 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
         
         // If dest does exist and is empty, simply overwrite the existing data
         else if (to_child->is_dir && !to_child->file_size_b) {
+            printf("moving: to empty existing dir\n");
             sz = inode_data_get(fs, from_child, data);      // Get dir's data
             inode_data_set(fs, to_child, data, sz);         // Overwrite dest
             child_remove(fs, from);                         // Remove old dir
@@ -973,6 +985,8 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // Else, renaming a regular file
     else {
+        printf("\nmoving: file\n");
+
         sz = inode_data_get(fs, from_child, data);          // Get file's data
         
         // If dest exists, overwrite it in an atomic way, else just create it
@@ -987,6 +1001,8 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
     free(data);
     free(to_name);
     free(to_path);
+
+    printf("\nrename end\n");
 
     return 0;  // Success
 }
@@ -1039,6 +1055,7 @@ int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
     return 0;  // Success
 }
 
+/* -- __myfs_open_implem -- */
 /* Implements an emulation of the open system call on the filesystem 
    of size fssize pointed to by fsptr, without actually performing the opening
    of the file (no file descriptor is returned).
@@ -1079,6 +1096,7 @@ int __myfs_open_implem(void *fsptr, size_t fssize, int *errnoptr,
     return 0; // Success
 }
 
+/* -- __myfs_read_implem -- */
 /* Implements an emulation of the read system call on the filesystem 
    of size fssize pointed to by fsptr.
 
@@ -1114,17 +1132,21 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
     size_t data_size = inode_data_get(fs, inode, full_buf);
 
     // If offset not beyond end of data
-    if (offset < data_size) {
+    if (offset <= data_size) {
         cpy_buf += offset;              // data index
         cpy_size = data_size - offset;  // bytes to read
-        memcpy(buf, cpy_buf, cpy_size); // 
+        memcpy(buf, cpy_buf, cpy_size); 
+    }
+    else {
+            *errnoptr = EFBIG;          // Max offset exceeded
     }
 
     free(full_buf);
 
-    return cpy_size;  // num bytes written
+    return cpy_size;  // Success
 }
 
+/* -- __myfs_write_implem -- */
 /* Implements an emulation of the write system call on the filesystem 
    of size fssize pointed to by fsptr.
 
@@ -1138,7 +1160,6 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
    On failure, -1 is returned and *errnoptr is set appropriately.
 
    The error codes are documented in man 2 write.
-
 */
 int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path, const char *buf, size_t size, off_t offset) {
@@ -1159,6 +1180,7 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
         inode_data_set(fs, inode, dup, size);
         free(dup);
     }
+    
 
     // Else, append to existing file data, starting at offset
     else {   
@@ -1169,7 +1191,7 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
         size_t orig_sz = inode_data_get(fs, inode, orig_data);
 
         // If offset is not beyond end of data
-        if (offset < orig_sz) { 
+        if (offset <= orig_sz) { 
             // Build 1st half of new_data from existing file data, starting at offset
             new_data = strndup(orig_data, offset);
 
@@ -1181,9 +1203,11 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
             // Replace the file's data with the new data
             inode_data_set(fs, inode, new_data, new_data_sz);
             free(new_data);
-
         } 
+
+        // Else, max offset exceeded
         else {
+            *errnoptr = EFBIG;
             size = 0; // Set return value
         }
 
@@ -1193,6 +1217,7 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
     return size;  // num bytes written
 }
 
+/* -- __myfs_utimens_implem -- */
 /* Implements an emulation of the utimensat system call on the filesystem 
    of size fssize pointed to by fsptr.
 
