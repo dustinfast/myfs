@@ -332,21 +332,6 @@ static Inode* inode_nextfree(FSHandle *fs) {
     return NULL;
 }
 
-// Returns the number of free inodes in the filesystem
-static size_t inodes_numfree(FSHandle *fs) {
-    Inode *inode = fs->inode_seg;
-    size_t num_inodes = fs->num_inodes;
-    size_t num_free = 0;
-
-    for (int i = 0; i < num_inodes; i++) {
-        if (inode_isfree(inode))
-            num_free++;
-
-        inode++; // ptr arithmetic
-    }
-    return num_free;
-}
-
 
 /* End inode helpers ----------------------------------------------------- */
 /* Begin String Helpers -------------------------------------------------- */
@@ -1046,7 +1031,6 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     }
     else {
         char **curr = *namesptr;  // To keep namesptr static as we iterate
-        int idx = 0;
         next = names;
         for (int i = 0; i < names_count; i++)
         {
@@ -1690,7 +1674,7 @@ int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
 /* Begin DEBUG  ----------------------------------------------------------- */
 
 
-# include "debuglib.h"  // For dev use - includes main() & debug output funcs
+// # include "debuglib.h"  // For dev use - includes main() and debug helpers
 
 
 /* End DEBUG  ------------------------------------------------------------- */
