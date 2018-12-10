@@ -43,14 +43,12 @@ Design by: Dustin Fast
 
 
 ### Directory Lookup Table Format
-Directory contents are denoted by each directory's inode, according to the format `label:offset\n'. For example:
-``` sh
-        "dir1:offset\ndir2:offset\nfile1:offset"
-```
+Directory contents are denoted by each directory's inode, according to the format `label:offset\n`. For example:  
+`dir1:offset\ndir2:offset\nfile1:offset`
 
 Denotes a directory having the contents
 
-``` sh
+```
 ./
 |  file1
 |
