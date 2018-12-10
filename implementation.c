@@ -217,7 +217,6 @@ static size_t memblocks_numfree(FSHandle *fs) {
 // Populates buf with the given memblock's data and the data of any subsequent 
 // MemBlocks extending it. Returns: The size of the data at buf.
 // NOTE: buf must be pre-allocated - ex: malloc(inode->file_size_b)
-// Author: Brooks Woods & Dustin Fast
 size_t memblock_data_get(FSHandle *fs, MemHead *memhead, const char *buf) {
     MemHead *memblock = (MemHead*) memhead;
     size_t total_sz = 0;
@@ -848,7 +847,6 @@ static Inode *file_new(FSHandle *fs, char *path, char *fname, char *data,
 
 
 // Resolves the given file or directory path and returns its associated inode.
-// Author: Joel Keller & Dustin Fast
 static Inode* resolve_path(FSHandle *fs, const char *path) {
     Inode* root_dir = fs_rootnode_get(fs);
 

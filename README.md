@@ -67,11 +67,9 @@ The design was chosen to meet the following requirements:
 
 Additionally, the implemenation assumes only absolute paths are ever passed to the 13 funcs "__myfs_..._implem" functions.
 
-
 ## Test Results
 
-
-Testing was performed on Debian 4.9 and Ubunutu 18 with the following results:
+Testing was performed on Debian 4.9 and Ubuntu 18 with the following results:
 
 ### Positive Testing 
 
@@ -122,7 +120,7 @@ The file system was then **remounted** with `./myfs --backupfile=test.myfs ~/fus
 | `rm file2` | `NONE` | PASS |
 | `rm file1` |  `NONE`    |  PASS  |
 | `ls` | `NONE` | PASS |
-| `wget https://sample-videos.com/video123/mp4/360/big_buck_bunny_360p_30mb.mp4` | `... Saving to 'big_buck_bunny_360p_30mb.mp4'... Success.` | PASS |
+| `wget https://sample-videos.com/video123/mp4/360/big_buck_bunny_360p_30mb.mp4` | `... Saving to 'big_buck_bunny_360p_30mb.mp4'... saved` | PASS |
 | `xdgopen big_buck_bunny_360p_30mb.mp4` | **video begins playing** | PASS |
 | `rm big_buck_bunny_360p_30mb.mp4` | **video halts** | FAIL |
 | `cd ../` |  `NONE` |  PASS    |
