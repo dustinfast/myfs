@@ -112,7 +112,7 @@ static void inode_data_remove(FSHandle *fs, Inode *inode, int newblock) {
         memset(memblock, 0, (block_end - (void*)memblock));  // Format memblock
         memblock = (MemHead*)block_next;                     // Advance to next
         
-    } while (block_next != (MemHead*)fs);                   // i.e. nextblk != 0
+    } while (block_next != (MemHead*)fs);                    // i.e. nextblk != 0
 
     // Update the inode to reflect the disassociation
     *(int*)(&inode->file_size_b) = 0;
@@ -551,8 +551,8 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
     //Populate stdbuf with the atrributes of the inode
     stbuf->st_uid = uid;
     stbuf->st_gid = gid;
-    stbuf->st_atim = *inode->last_acc; 
-    stbuf->st_mtim = *inode->last_mod;    
+    stbuf->st_atim = *(struct timespec*)(&inode->last_acc); 
+    stbuf->st_mtim = *(struct timespec*)(&inode->last_mod);    
     
     if (inode->is_dir) {
         stbuf->st_mode = S_IFDIR | 0755;
