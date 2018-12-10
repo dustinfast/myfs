@@ -38,22 +38,33 @@ After mounting, open a new terminal and navigate to the filesystem's root at PAT
 ### Design
 
 ![Design](https://github.com/dustinfast/myfs/raw/master/img/fs_design.jpg "Design")
-Design By: Dustin Fast
+Design by: Dustin Fast
     
 
 
 ### Directory Lookup Table Format
-    Directory file data field structure:
-        Ex: "dir1:offset\ndir2:offset\nfile1:offset"
-        Ex: "file1:offset\nfile2:offset"
+Directory contents are denoted by each directory's inode, according to the format `label:offset\n'. For example:
+``` sh
+        "dir1:offset\ndir2:offset\nfile1:offset"
+```
 
+Denotes a directory having the contents
+
+``` sh
+./
+|  file1
+|
++--- dir1
+|
++--- dir2
+```
         
 ### Design Decisions
-The design was chosen with the following requirements in mind
-
+The design was chosen with the following requirements in mind:
 
 1. ...
 
+Additionally, the following assumptions were made:
 Design Decisions:
         Assume a single process accesses the fs at a time?
         To begin writing data before checking fs has enough room?
@@ -69,7 +80,6 @@ These goals led to the following design decisions -
 
 ## Test Results
 
-Dustin performed by: Dustin Fast
 
 Testing was performed on Debian 4.9 and Ubunutu 18 to verify the following -
 
@@ -77,7 +87,8 @@ Testing was performed on Debian 4.9 and Ubunutu 18 to verify the following -
 | Test | Result | TTI w/our Implementation | TTI w/ stdlib Implementation |
 | --------------------------------- | ---------- | --------- | -------- |
 
+Testing performed by: Dustin Fast
 
 
-
+Report by: Dustin Fast
 
