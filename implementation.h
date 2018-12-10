@@ -302,6 +302,21 @@ static Inode* inode_nextfree(FSHandle *fs) {
     return NULL;
 }
 
+// Returns the number of free inodes in the filesystem
+static size_t inodes_numfree(FSHandle *fs) {
+    Inode *inode = fs->inode_seg;
+    size_t num_inodes = fs->num_inodes;
+    size_t num_free = 0;
+
+    for (int i = 0; i < num_inodes; i++) {
+        if (inode_isfree(inode))
+            num_free++;
+
+        inode++; // ptr arithmetic
+    }
+    return num_free;
+}
+
 
 /* End inode helpers ----------------------------------------------------- */
 /* Begin String Helpers -------------------------------------------------- */

@@ -536,7 +536,6 @@ static Inode* resolve_path(FSHandle *fs, const char *path) {
 int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,
                           uid_t uid, gid_t gid, const char *path, 
                           struct stat *stbuf) {         
-    printf("\nstart attr\n");                 
     FSHandle *fs = NULL;       // Handle to the file system
     Inode *inode = NULL;       // Inode for the given path
 
@@ -616,7 +615,7 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     // Ensure path denotes a dir
     if (!inode->is_dir) {
-        *errnoptr = EINVAL;
+        *errnoptr = ENOTDIR;
         return -1;
     }
 
@@ -625,7 +624,7 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
     size_t data_sz = inode_data_get(fs, inode, data);
     memcpy(data + data_sz + 1, FS_DIRDATA_END, 1);
 
-    // Build the names array from the lookup table data
+    // Denote count and build content string from lookup table data
     char *token, *name, *next;
     size_t names_count = 0;
     size_t names_len = 0;
@@ -645,22 +644,38 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
         memcpy(names + names_len - nlen, name, nlen - 1);
         memset(names + names_len - 1, '\0', 1);
         names_count++;
-        
-        // Debug
-        // printf("name: %s\n", name);
-        // printf("nameslen: %lu\n", names_len);
-        // printf("set 1    : %lu\n", names_len - nlen);
-        // printf("set 2    : %lu\n", names_len - 1);
     }
 
+    // Copy the items into namesptr (should combine with above, otherwise O(n^2)
+    *namesptr = calloc(names_count, 1);
 
-    if (names_count)
-        namesptr = (char ***)names;
-
+    if (!namesptr) {
+        *errnoptr = EFAULT;
+    }
+    else {
+        char **curr = *namesptr;  // To keep namesptr static as we iterate
+        int idx = 0;
+        next = names;
+        for (int i = 0; i < names_count; i++)
+        {
+            int len = str_len(next);
+            *curr = realloc(*curr, len + 1);
+            strcpy(*curr, next);
+            next += len+1;
+            *curr++;
+        }
+        
+        // debug
+        // curr = *namesptr;
+        // for (int i = 0; i < names_count; i++)
+        // {
+        //     printf("\n%d: %s", i, *curr);
+        //     *curr++;
+        // }
+        // write(fileno(stdout), names, names_len); printf("\n");  // debug
+    }
+    
     free(data);
-
-    write(fileno(stdout), names, names_len); printf("\n");  // debug
-    printf("\ncount: %lu\n", names_count);
 
     return names_count;
 }
