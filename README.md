@@ -1,6 +1,6 @@
-# Team3a - Homework 4: 
+# myfs
 
-A FUSE (Filesystem in user space) based file system.
+A FUSE (Filesystem in user space) based file system written in C.
 
 ## Usage
 
