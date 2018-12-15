@@ -55,11 +55,11 @@ For example: `dir1:offset\ndir2:offset\nfile1:offset` denotes a directory having
 The design was chosen to meet the following requirements:
 
 * Global variables may not be used due to FUSE constraints.
-* Pointers to area's in memory must now to be stored into the filesystem in order to facilitate file backup and restore. Instead, offsets must be stored.
+* Pointers to area's in memory must not be stored into the filesystem in order to facilitate file backup and restore. Instead, offsets must be stored.
 * The applicaton must not leak memory or segfault.
-* Errors may must not cause the application to exit.
+* Errors must not cause the application to exit.
 
-Additionally, the implemenation assumes only absolute paths are ever passed to the 13 funcs "__myfs_..._implem" functions.
+Additionally, the implemenation assumes only absolute paths are ever passed from FUSE to each emulator function.
 
 ## Test Results
 
