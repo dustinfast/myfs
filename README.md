@@ -63,9 +63,7 @@ Additionally, the implemenation assumes only absolute paths are ever passed to t
 
 ## Test Results
 
-Testing was performed on Debian 4.9 and Ubuntu 18 with the following results:
-
-### Positive Testing 
+Tested on Debian 4.9 and Ubuntu 18.
 
 The filesystem was **mounted** via `valgrind --leak-check=full ./myfs --backupfile=test.myfs ~/fuse-mnt/ -f`, after which the following commands were entered in sequence on an empty filesystem and expected to either succeed or fail gracefully -
 
