@@ -2,12 +2,6 @@
 
 A FUSE (Filesystem in user space) based file system.
 
-## Contributors
-
-Dustin Fast, Joel Keller, Brooks Woods
-
-<img src="https://github.com/dustinfast/myfs/raw/master/img/contributors.png" width="400">
-
 ## Usage
 
 Compile with:
@@ -122,12 +116,6 @@ The file system was then **remounted** with `./myfs --backupfile=test.myfs ~/fus
 | `ls` | `NONE` | PASS |
 | `wget https://sample-videos.com/video123/mp4/360/big_buck_bunny_360p_30mb.mp4` | `... Saving to 'big_buck_bunny_360p_30mb.mp4'... saved` | PASS |
 | `xdgopen big_buck_bunny_360p_30mb.mp4` | **video begins playing** | PASS |
-| `rm big_buck_bunny_360p_30mb.mp4` | **video halts** | FAIL |
 | `cd ../` |  `NONE` |  PASS    |
 | `fusermount - u fuse-mnt` | `NONE` | PASS |
-
-sudo apt-get install mplayer
-Testing performed by: Dustin Fast
-
-#### Report by: Dustin Fast
 
