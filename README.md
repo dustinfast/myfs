@@ -2,6 +2,8 @@
 
 A FUSE (Filesystem in user space) based file system written in C.
 
+Contributor's Note: `myfs.c` written by Christopher Lauter
+
 ## Usage
 
 Compile with:
